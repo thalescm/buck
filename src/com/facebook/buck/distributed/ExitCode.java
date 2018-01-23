@@ -17,6 +17,18 @@ package com.facebook.buck.distributed;
 
 /** Distributed build exit codes used by Stampede. */
 public enum ExitCode {
+  /** Build finished successfully */
+  DISTRIBUTED_BUILD_SUCCESSFUL(0),
+
+  /** Real exit code hasn't been generated yet */
+  DISTRIBUTED_PENDING_EXIT_CODE(10),
+
+  /** Real exit code hasn't been generated yet */
+  LOCAL_PENDING_EXIT_CODE(11),
+
+  /** Local build finished before the remote build */
+  LOCAL_BUILD_FINISHED_FIRST(20),
+
   /** Forced coordinator shutdown */
   UNEXPECTED_STOP_EXIT_CODE(42),
 
@@ -29,8 +41,8 @@ public enum ExitCode {
   /** Coordinator found dead minion and failed the build */
   DEAD_MINION_FOUND_EXIT_CODE(46),
 
-  /** Coordinator detected that build had been externally set to terminal state */
-  BUILD_TERMINATED_REMOTELY_EXIT_CODE(47),
+  /** Coordinator detected that build had been externally set to terminal failed state */
+  BUILD_FAILED_EXTERNALLY_EXIT_CODE(47),
 
   /** Preparation step threw an Exception during sync steps */
   PREPARATION_STEP_FAILED(200),

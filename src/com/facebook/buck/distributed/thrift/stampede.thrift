@@ -219,6 +219,8 @@ struct CreateBuildRequest {
   5: optional string tenantId;
   6: optional string buckBuildUuid;
   7: optional string username;
+  8: optional list<string> buildTargets;
+  9: optional string buildLabel;
 }
 
 struct CreateBuildResponse {

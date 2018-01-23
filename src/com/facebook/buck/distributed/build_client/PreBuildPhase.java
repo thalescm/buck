@@ -53,6 +53,7 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /** Phase before the build. */
 public class PreBuildPhase {
@@ -66,6 +67,7 @@ public class PreBuildPhase {
   private final BuildExecutorArgs buildExecutorArgs;
   private final ImmutableSet<BuildTarget> topLevelTargets;
   private final ActionAndTargetGraphs actionAndTargetGraphs;
+  private final String buildLabel;
 
   public PreBuildPhase(
       DistBuildService distBuildService,
@@ -75,7 +77,8 @@ public class PreBuildPhase {
       BuckVersion buckVersion,
       BuildExecutorArgs buildExecutorArgs,
       ImmutableSet<BuildTarget> topLevelTargets,
-      ActionAndTargetGraphs buildGraphs) {
+      ActionAndTargetGraphs buildGraphs,
+      String buildLabel) {
     this.distBuildService = distBuildService;
     this.distBuildClientStats = distBuildClientStats;
     this.asyncJobState = asyncJobState;
@@ -84,6 +87,7 @@ public class PreBuildPhase {
     this.buildExecutorArgs = buildExecutorArgs;
     this.topLevelTargets = topLevelTargets;
     this.actionAndTargetGraphs = buildGraphs;
+    this.buildLabel = buildLabel;
   }
 
   /** Run all steps required before the build. */
@@ -97,19 +101,25 @@ public class PreBuildPhase {
       int numberOfMinions,
       String repository,
       String tenantId,
-      ListenableFuture<Optional<ParallelRuleKeyCalculator<RuleKey>>> localRuleKeyCalculatorFuture)
-      throws IOException, InterruptedException {
+      ListenableFuture<ParallelRuleKeyCalculator<RuleKey>> localRuleKeyCalculatorFuture)
+      throws IOException {
     EventSender eventSender = new EventSender(eventBus);
 
     distBuildClientStats.startTimer(CREATE_DISTRIBUTED_BUILD);
+    List<String> buildTargets =
+        topLevelTargets
+            .stream()
+            .map(x -> x.getFullyQualifiedName())
+            .sorted()
+            .collect(Collectors.toList());
     BuildJob job =
-        distBuildService.createBuild(buildId, buildMode, numberOfMinions, repository, tenantId);
+        distBuildService.createBuild(
+            buildId, buildMode, numberOfMinions, repository, tenantId, buildTargets, buildLabel);
     distBuildClientStats.stopTimer(CREATE_DISTRIBUTED_BUILD);
 
     final StampedeId stampedeId = job.getStampedeId();
     eventBus.post(new DistBuildCreatedEvent(stampedeId));
 
-    distBuildClientStats.setStampedeId(stampedeId.getId());
     LOG.info("Created job. Build id = " + stampedeId.getId());
 
     eventSender.postDistBuildStatusEvent(job, ImmutableList.of(), "SERIALIZING AND UPLOADING DATA");
@@ -176,8 +186,6 @@ public class PreBuildPhase {
                         networkExecutorService,
                         buildExecutorArgs.getArtifactCacheFactory().remoteOnlyInstance(true),
                         eventBus,
-                        fileHashCache,
-                        buildExecutorArgs.getRuleKeyConfiguration(),
                         localRuleKeyCalculator,
                         Optional.of(
                             buildExecutorArgs.getArtifactCacheFactory().localOnlyInstance(true)))) {

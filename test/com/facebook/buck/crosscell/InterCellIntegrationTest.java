@@ -16,8 +16,8 @@
 
 package com.facebook.buck.crosscell;
 
-import static com.facebook.buck.android.AndroidNdkHelper.SymbolGetter;
-import static com.facebook.buck.android.AndroidNdkHelper.SymbolsAndDtNeeded;
+import static com.facebook.buck.android.toolchain.ndk.impl.AndroidNdkHelper.SymbolGetter;
+import static com.facebook.buck.android.toolchain.ndk.impl.AndroidNdkHelper.SymbolsAndDtNeeded;
 import static com.facebook.buck.util.environment.Platform.WINDOWS;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.CoreMatchers.not;
@@ -30,9 +30,9 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeThat;
 
-import com.facebook.buck.android.AndroidNdkHelper;
 import com.facebook.buck.android.AssumeAndroidPlatform;
 import com.facebook.buck.android.toolchain.ndk.NdkCxxPlatform;
+import com.facebook.buck.android.toolchain.ndk.impl.AndroidNdkHelper;
 import com.facebook.buck.event.BuckEventBus;
 import com.facebook.buck.event.BuckEventBusForTests;
 import com.facebook.buck.event.listener.BroadcastEventListener;
@@ -654,8 +654,7 @@ public class InterCellIntegrationTest {
     TestDataHelper.overrideBuckconfig(
         secondary, ImmutableMap.of("ndk", ImmutableMap.of("cpu_abis", "x86")));
 
-    NdkCxxPlatform platform =
-        AndroidNdkHelper.getNdkCxxPlatform(primary, primary.asCell().getFilesystem());
+    NdkCxxPlatform platform = AndroidNdkHelper.getNdkCxxPlatform(primary.asCell().getFilesystem());
     SourcePathResolver pathResolver =
         DefaultSourcePathResolver.from(
             new SourcePathRuleFinder(
@@ -703,8 +702,7 @@ public class InterCellIntegrationTest {
     TestDataHelper.overrideBuckconfig(
         secondary, ImmutableMap.of("ndk", ImmutableMap.of("cpu_abis", "x86")));
 
-    NdkCxxPlatform platform =
-        AndroidNdkHelper.getNdkCxxPlatform(primary, primary.asCell().getFilesystem());
+    NdkCxxPlatform platform = AndroidNdkHelper.getNdkCxxPlatform(primary.asCell().getFilesystem());
     SourcePathResolver pathResolver =
         DefaultSourcePathResolver.from(
             new SourcePathRuleFinder(

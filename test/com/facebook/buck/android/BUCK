@@ -11,7 +11,6 @@ STANDARD_INTEGRATION_TEST_SRCS = [
 UTILS_SRCS = [
     "DelegatingAndroidDevice.java",
     "FakeAndroidBuckConfig.java",
-    "FakeAndroidDirectoryResolver.java",
     "InstallLimitingAndroidDevice.java",
 ]
 
@@ -60,7 +59,6 @@ java_library(
         ":utils",
         "//src-gen:thrift",
         "//src/com/facebook/buck/android:config",
-        "//src/com/facebook/buck/android:cxxruntime",
         "//src/com/facebook/buck/android:helpers",
         "//src/com/facebook/buck/android:rules",
         "//src/com/facebook/buck/android:split_dex",
@@ -168,6 +166,7 @@ java_library(
         "//src/com/facebook/buck/worker:worker_pool_factory",
         "//src/com/facebook/buck/worker:worker_process",
         "//test/com/facebook/buck/android/toolchain:testutil",
+        "//test/com/facebook/buck/android/toolchain/ndk/impl:testutil",
         "//test/com/facebook/buck/config:FakeBuckConfig",
         "//test/com/facebook/buck/cxx:testutil",
         "//test/com/facebook/buck/cxx/toolchain:testutil",
@@ -371,7 +370,6 @@ java_test(
     deps = [
         "//src-gen:thrift",
         "//src/com/facebook/buck/android:config",
-        "//src/com/facebook/buck/android:cxxruntime",
         "//src/com/facebook/buck/android:helpers",
         "//src/com/facebook/buck/android:rules",
         "//src/com/facebook/buck/android:split_dex",
@@ -488,6 +486,7 @@ java_test(
         "//test/com/facebook/buck/android:testutil",
         "//test/com/facebook/buck/android:utils",
         "//test/com/facebook/buck/android/toolchain:testutil",
+        "//test/com/facebook/buck/android/toolchain/ndk/impl:testutil",
         "//test/com/facebook/buck/config:FakeBuckConfig",
         "//test/com/facebook/buck/cxx:testutil",
         "//test/com/facebook/buck/cxx/toolchain:testutil",
@@ -548,7 +547,6 @@ java_test(
         ":utils",
         "//src-gen:thrift",
         "//src/com/facebook/buck/android:config",
-        "//src/com/facebook/buck/android:cxxruntime",
         "//src/com/facebook/buck/android:helpers",
         "//src/com/facebook/buck/android:rules",
         "//src/com/facebook/buck/android:split_dex",
@@ -755,6 +753,7 @@ java_test(
         "//test/com/facebook/buck/android:testutil",
         "//test/com/facebook/buck/android:utils",
         "//test/com/facebook/buck/android/exopackage:utils",
+        "//test/com/facebook/buck/android/toolchain/ndk/impl:testutil",
         "//test/com/facebook/buck/io/filesystem:testutil",
         "//test/com/facebook/buck/jvm/java/testutil:testutil",
         "//test/com/facebook/buck/model:testutil",
@@ -782,7 +781,6 @@ java_test(
     deps = [
         "//src-gen:thrift",
         "//src/com/facebook/buck/android:config",
-        "//src/com/facebook/buck/android:cxxruntime",
         "//src/com/facebook/buck/android:helpers",
         "//src/com/facebook/buck/android:rules",
         "//src/com/facebook/buck/android:split_dex",
@@ -929,7 +927,6 @@ java_test(
     deps = [
         "//src-gen:thrift",
         "//src/com/facebook/buck/android:config",
-        "//src/com/facebook/buck/android:cxxruntime",
         "//src/com/facebook/buck/android:helpers",
         "//src/com/facebook/buck/android:rules",
         "//src/com/facebook/buck/android:split_dex",
@@ -1096,7 +1093,6 @@ java_test(
     deps = [
         "//src-gen:thrift",
         "//src/com/facebook/buck/android:config",
-        "//src/com/facebook/buck/android:cxxruntime",
         "//src/com/facebook/buck/android:helpers",
         "//src/com/facebook/buck/android:rules",
         "//src/com/facebook/buck/android:split_dex",
@@ -1211,6 +1207,7 @@ java_test(
         "//test/com/facebook/buck/android:utils",
         "//test/com/facebook/buck/android/exopackage:utils",
         "//test/com/facebook/buck/android/toolchain:testutil",
+        "//test/com/facebook/buck/android/toolchain/ndk/impl:testutil",
         "//test/com/facebook/buck/artifact_cache:testutil",
         "//test/com/facebook/buck/config:FakeBuckConfig",
         "//test/com/facebook/buck/io/filesystem:testutil",
@@ -1266,7 +1263,6 @@ java_test(
     deps = [
         "//src-gen:thrift",
         "//src/com/facebook/buck/android:config",
-        "//src/com/facebook/buck/android:cxxruntime",
         "//src/com/facebook/buck/android:helpers",
         "//src/com/facebook/buck/android:rules",
         "//src/com/facebook/buck/android:split_dex",
@@ -1276,6 +1272,7 @@ java_test(
         "//src/com/facebook/buck/android/agent/util:util",
         "//src/com/facebook/buck/android/dalvik:dalvik_stats_tool",
         "//src/com/facebook/buck/android/redex:options",
+        "//src/com/facebook/buck/android/toolchain/impl:impl",
         "//src/com/facebook/buck/android/toolchain/ndk/impl:impl",
         "//src/com/facebook/buck/apple/project_generator:project_generator",
         "//src/com/facebook/buck/apple/xcode:xcode",
@@ -1371,6 +1368,8 @@ java_test(
         "//src/com/facebook/buck/worker:worker_pool_factory",
         "//src/com/facebook/buck/worker:worker_process",
         "//test/com/facebook/buck/android:testutil",
+        "//test/com/facebook/buck/android/toolchain:testutil",
+        "//test/com/facebook/buck/android/toolchain/ndk/impl:testutil",
         "//test/com/facebook/buck/artifact_cache:testutil",
         "//test/com/facebook/buck/io/filesystem:testutil",
         "//test/com/facebook/buck/jvm/java/testutil:testutil",

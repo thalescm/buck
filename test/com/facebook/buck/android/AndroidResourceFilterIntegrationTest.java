@@ -21,6 +21,12 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import com.facebook.buck.android.toolchain.AndroidBuildToolsLocation;
+import com.facebook.buck.android.toolchain.AndroidSdkLocation;
+import com.facebook.buck.android.toolchain.TestAndroidSdkLocationFactory;
+import com.facebook.buck.android.toolchain.impl.AndroidBuildToolsResolver;
+import com.facebook.buck.android.toolchain.impl.AndroidPlatformTargetProducer;
+import com.facebook.buck.android.toolchain.ndk.impl.AndroidNdkHelper;
 import com.facebook.buck.artifact_cache.ArtifactCache;
 import com.facebook.buck.artifact_cache.DirArtifactCacheTestUtil;
 import com.facebook.buck.artifact_cache.TestArtifactCaches;
@@ -39,7 +45,6 @@ import com.facebook.buck.util.VersionStringComparator;
 import com.facebook.buck.util.sha1.Sha1HashCode;
 import com.google.common.base.Splitter;
 import com.google.common.collect.FluentIterable;
-import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -70,13 +75,16 @@ public class AndroidResourceFilterIntegrationTest {
     AssumeAndroidPlatform.assumeSdkIsAvailable();
     ProjectFilesystem filesystem =
         TestProjectFilesystems.createProjectFilesystem(Paths.get(".").toAbsolutePath());
-    AndroidDirectoryResolver resolver =
-        new DefaultAndroidDirectoryResolver(
-            filesystem.getRootPath().getFileSystem(),
-            ImmutableMap.copyOf(System.getenv()),
-            AndroidNdkHelper.DEFAULT_CONFIG);
+
+    AndroidSdkLocation androidSdkLocation = TestAndroidSdkLocationFactory.create(filesystem);
+    AndroidBuildToolsResolver buildToolsResolver =
+        new AndroidBuildToolsResolver(AndroidNdkHelper.DEFAULT_CONFIG, androidSdkLocation);
     pathToAapt =
-        AndroidPlatformTarget.getDefaultPlatformTarget(resolver, Optional.empty(), Optional.empty())
+        AndroidPlatformTargetProducer.getDefaultPlatformTarget(
+                AndroidBuildToolsLocation.of(buildToolsResolver.getBuildToolsPath()),
+                androidSdkLocation,
+                Optional.empty(),
+                Optional.empty())
             .getAaptExecutable();
     String buildToolsVersion = pathToAapt.getParent().getFileName().toString();
     isBuildToolsNew = new VersionStringComparator().compare(buildToolsVersion, "21") >= 0;

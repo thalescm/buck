@@ -265,6 +265,24 @@ public class QueryCommandIntegrationTest {
   }
 
   @Test
+  public void testOwnersWithInvalidFilesPrintsErrors() throws IOException {
+    ProjectWorkspace workspace =
+        TestDataHelper.createProjectWorkspaceForScenario(this, "query_command", tmp);
+    workspace.setUp();
+
+    ProjectWorkspace.ProcessResult result =
+        workspace.runBuckCommand(
+            "query",
+            "owner('odd_files/unowned.cpp') + owner('odd_files/missing.cpp') + owner('odd_files/non_file') + owner('example/1.txt')");
+
+    result.assertSuccess();
+    assertThat(result.getStdout(), containsString("//example:one"));
+    assertThat(result.getStderr(), containsString("No owner was found for odd_files/unowned.cpp"));
+    assertThat(result.getStderr(), containsString("File odd_files/missing.cpp does not exist"));
+    assertThat(result.getStderr(), containsString("odd_files/non_file is not a regular file"));
+  }
+
+  @Test
   public void testFormatWithoutFormatString() throws IOException {
     ProjectWorkspace workspace =
         TestDataHelper.createProjectWorkspaceForScenario(this, "query_command", tmp);
@@ -625,6 +643,23 @@ public class QueryCommandIntegrationTest {
   }
 
   @Test
+  public void testDotOutputWithAttributes() throws IOException {
+    ProjectWorkspace workspace =
+        TestDataHelper.createProjectWorkspaceForScenario(this, "query_command", tmp);
+    workspace.setUp();
+
+    ProjectWorkspace.ProcessResult result =
+        workspace.runBuckCommand(
+            "query", "--dot", "deps(//example:one)", "--output-attributes", "name", "buck.type");
+    result.assertSuccess();
+    assertThat(
+        result.getStdout(),
+        is(
+            equalToIgnoringPlatformNewlines(
+                workspace.getFileContents("stdout-deps-one-with-attributes.dot"))));
+  }
+
+  @Test
   public void testRankOutputForDeps() throws IOException {
     ProjectWorkspace workspace =
         TestDataHelper.createProjectWorkspaceForScenario(this, "query_command", tmp);
@@ -642,6 +677,70 @@ public class QueryCommandIntegrationTest {
     assertThat(
         result.getStdout(),
         is(equalToIgnoringPlatformNewlines(workspace.getFileContents("stdout-maxrank-deps-one"))));
+  }
+
+  @Test
+  public void testRankOutputWithAttributes() throws IOException {
+    ProjectWorkspace workspace =
+        TestDataHelper.createProjectWorkspaceForScenario(this, "query_command", tmp);
+    workspace.setUp();
+
+    ProjectWorkspace.ProcessResult result =
+        workspace.runBuckCommand(
+            "query", "deps(//example:one)", "--output", "minrank", "--output-attributes", "name");
+    result.assertSuccess();
+    assertThat(
+        result.getStdout(),
+        is(
+            equalToIgnoringPlatformNewlines(
+                workspace.getFileContents("stdout-minrank-deps-one-with-attributes.json"))));
+
+    result =
+        workspace.runBuckCommand(
+            "query", "deps(//example:one)", "--output", "maxrank", "--output-attributes", "name");
+    result.assertSuccess();
+    assertThat(
+        result.getStdout(),
+        is(
+            equalToIgnoringPlatformNewlines(
+                workspace.getFileContents("stdout-maxrank-deps-one-with-attributes.json"))));
+  }
+
+  @Test
+  public void testRankOutputWithAttributesIgnoresFlavors() throws IOException {
+    ProjectWorkspace workspace =
+        TestDataHelper.createProjectWorkspaceForScenario(this, "query_command", tmp);
+    workspace.setUp();
+
+    ProjectWorkspace.ProcessResult result =
+        workspace.runBuckCommand(
+            "query",
+            "deps(//example:one#no-linkermap)",
+            "--output",
+            "minrank",
+            "--output-attributes",
+            "name");
+    result.assertSuccess();
+    assertThat(
+        result.getStdout(),
+        is(
+            equalToIgnoringPlatformNewlines(
+                workspace.getFileContents("stdout-minrank-deps-one-with-attributes.json"))));
+
+    result =
+        workspace.runBuckCommand(
+            "query",
+            "deps(//example:one#no-linkermap)",
+            "--output",
+            "maxrank",
+            "--output-attributes",
+            "name");
+    result.assertSuccess();
+    assertThat(
+        result.getStdout(),
+        is(
+            equalToIgnoringPlatformNewlines(
+                workspace.getFileContents("stdout-maxrank-deps-one-with-attributes.json"))));
   }
 
   class ParserProfileFinder extends SimpleFileVisitor<Path> {

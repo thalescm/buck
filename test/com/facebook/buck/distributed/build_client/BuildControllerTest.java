@@ -56,8 +56,14 @@ import com.facebook.buck.event.BuckEventBus;
 import com.facebook.buck.log.InvocationInfo;
 import com.facebook.buck.model.Pair;
 import com.facebook.buck.plugin.impl.BuckPluginManagerFactory;
+import com.facebook.buck.rules.ActionAndTargetGraphs;
+import com.facebook.buck.rules.ActionGraph;
+import com.facebook.buck.rules.ActionGraphAndResolver;
 import com.facebook.buck.rules.BuildInfoStoreManager;
+import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.RemoteBuildRuleSynchronizer;
+import com.facebook.buck.rules.TargetGraph;
+import com.facebook.buck.rules.TargetGraphAndBuildTargets;
 import com.facebook.buck.rules.TestCellBuilder;
 import com.facebook.buck.rules.keys.config.impl.ConfigRuleKeyConfigurationFactory;
 import com.facebook.buck.testutil.FakeFileHashCache;
@@ -71,14 +77,18 @@ import com.facebook.buck.util.environment.Platform;
 import com.facebook.buck.util.timing.DefaultClock;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SettableFuture;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import org.easymock.EasyMock;
 import org.junit.After;
 import org.junit.Before;
@@ -88,6 +98,7 @@ public class BuildControllerTest {
   private static final String REPOSITORY = "repositoryOne";
   private static final String TENANT_ID = "tenantOne";
   private static final String BUILD_LABEL = "unit_test";
+  private static final List<String> BUILD_TARGETS = Lists.newArrayList();
 
   private DistBuildService mockDistBuildService;
   private LogStateTracker mockLogStateTracker;
@@ -145,22 +156,37 @@ public class BuildControllerTest {
                     .build())
             .build();
 
+    StampedeId stampedeId = new StampedeId();
+    stampedeId.setId("some_stampede_id");
+    AtomicReference<StampedeId> stampedeIdRef = new AtomicReference<>(stampedeId);
+
+    ActionAndTargetGraphs graphs =
+        ActionAndTargetGraphs.builder()
+            .setActionGraphAndResolver(
+                ActionGraphAndResolver.of(
+                    createNiceMock(ActionGraph.class), createNiceMock(BuildRuleResolver.class)))
+            .setUnversionedTargetGraph(
+                TargetGraphAndBuildTargets.of(createNiceMock(TargetGraph.class), ImmutableSet.of()))
+            .build();
     return new BuildController(
-        executorArgs,
-        ImmutableSet.of(),
-        null,
-        Optional.empty(),
-        asyncBuildJobState,
-        distBuildCellIndexer,
-        mockDistBuildService,
-        mockLogStateTracker,
-        buckVersion,
-        distBuildClientStatsTracker,
-        scheduler,
-        0,
-        1,
-        true,
-        new RemoteBuildRuleSynchronizer());
+        BuildControllerArgs.builder()
+            .setBuilderExecutorArgs(executorArgs)
+            .setTopLevelTargets(ImmutableSet.of())
+            .setBuildGraphs(graphs)
+            .setAsyncJobState(asyncBuildJobState)
+            .setDistBuildCellIndexer(distBuildCellIndexer)
+            .setDistBuildService(mockDistBuildService)
+            .setDistBuildLogStateTracker(mockLogStateTracker)
+            .setBuckVersion(buckVersion)
+            .setDistBuildClientStats(distBuildClientStatsTracker)
+            .setScheduler(scheduler)
+            .setMaxTimeoutWaitingForLogsMillis(0)
+            .setStatusPollIntervalMillis(1)
+            .setLogMaterializationEnabled(true)
+            .setRemoteBuildRuleCompletionNotifier(new RemoteBuildRuleSynchronizer(true))
+            .setStampedeIdReference(stampedeIdRef)
+            .setBuildLabel(BUILD_LABEL)
+            .build());
   }
 
   private BuildController.ExecutionResult runBuildWithController(BuildController buildController)
@@ -178,7 +204,7 @@ public class BuildControllerTest {
         1,
         REPOSITORY,
         TENANT_ID,
-        Futures.immediateFuture(Optional.empty()));
+        SettableFuture.create());
   }
 
   @After
@@ -242,7 +268,13 @@ public class BuildControllerTest {
     // Ensure the synchronous steps succeed
     expect(
             mockDistBuildService.createBuild(
-                invocationInfo.getBuildId(), BuildMode.REMOTE_BUILD, 1, REPOSITORY, TENANT_ID))
+                invocationInfo.getBuildId(),
+                BuildMode.REMOTE_BUILD,
+                1,
+                REPOSITORY,
+                TENANT_ID,
+                BUILD_TARGETS,
+                BUILD_LABEL))
         .andReturn(job);
 
     expect(
@@ -440,7 +472,13 @@ public class BuildControllerTest {
       BuildJob job, BuildJobState buildJobState) throws IOException {
     expect(
             mockDistBuildService.createBuild(
-                invocationInfo.getBuildId(), BuildMode.REMOTE_BUILD, 1, REPOSITORY, TENANT_ID))
+                invocationInfo.getBuildId(),
+                BuildMode.REMOTE_BUILD,
+                1,
+                REPOSITORY,
+                TENANT_ID,
+                BUILD_TARGETS,
+                BUILD_LABEL))
         .andReturn(job);
     expect(
             mockDistBuildService.uploadMissingFilesAsync(

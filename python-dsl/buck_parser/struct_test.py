@@ -5,6 +5,8 @@ from __future__ import with_statement
 
 from . import struct
 
+import copy
+
 import unittest
 
 
@@ -27,3 +29,30 @@ class StructTest(unittest.TestCase):
                 AttributeError,
                 "Mutation of struct attributes \('foo'\) is not allowed."):
             struct.struct(foo="foo").foo = "bar"
+
+    def testCanCopy(self):
+        original = struct.struct(foo="bar")
+        copied = copy.copy(original)
+        self.assertEqual(original, copied)
+        self.assertIsNot(original, copied)
+
+    def testCanDeepCopy(self):
+        original = struct.struct(foo="bar")
+        deepcopied = copy.deepcopy(original)
+        self.assertEqual(original, deepcopied)
+        self.assertIsNot(original, deepcopied)
+
+    def testInequality(self):
+        x = struct.struct(foo="bar")
+        y = struct.struct(foo="baz")
+        self.assertNotEqual(x, y)
+
+    def testCanUseAsAHashKey(self):
+        x = struct.struct(foo="bar")
+        y = struct.struct(foo="baz")
+        dictionary = {
+            x: "x",
+            y: "y",
+        }
+        self.assertEqual(dictionary[x], "x")
+        self.assertNotEqual(dictionary[y], "x")

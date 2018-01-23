@@ -217,6 +217,8 @@ public class ArtifactCaches implements ArtifactCacheFactory {
       }
 
       switch (mode) {
+        case unknown:
+          break;
         case dir:
           initializeDirCaches(cacheEntries, buckEventBus, projectFilesystem, builder);
           break;
@@ -490,8 +492,16 @@ public class ArtifactCaches implements ArtifactCacheFactory {
             new RetryingHttpService(
                 buckEventBus,
                 new LoadBalancedService(clientSideSlb, fetchClient, buckEventBus),
+                "buck_cache_fetch_request_http_retries",
                 config.getMaxFetchRetries());
-        storeService = new LoadBalancedService(clientSideSlb, storeClient, buckEventBus);
+        storeService =
+            new RetryingHttpService(
+                buckEventBus,
+                new LoadBalancedService(clientSideSlb, storeClient, buckEventBus),
+                "buck_cache_store_request_http_retries",
+                config.getMaxStoreAttempts() - 1 /* maxNumberOfRetries */,
+                config.getStoreRetryIntervalMillis());
+
         break;
 
       case SINGLE_SERVER:
