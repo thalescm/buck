@@ -14,19 +14,24 @@
  * under the License.
  */
 
-package com.facebook.buck.cxx;
+package com.facebook.buck.cxx.toolchain.nativelink;
 
+import com.facebook.buck.cxx.toolchain.CxxPlatform;
 import com.facebook.buck.cxx.toolchain.linker.Linker;
 import com.facebook.buck.model.Flavor;
-import com.facebook.buck.util.immutables.BuckStylePackageVisibleTuple;
+import com.facebook.buck.util.immutables.BuckStyleTuple;
 import org.immutables.value.Value;
 
 @Value.Immutable
-@BuckStylePackageVisibleTuple
+@BuckStyleTuple
 abstract class AbstractNativeLinkableCacheKey {
   public abstract Flavor getFlavor();
 
   public abstract Linker.LinkableDepType getType();
 
   public abstract boolean getForceLinkWhole();
+
+  @Value.Auxiliary
+  // used only when loading from cache
+  public abstract CxxPlatform getCxxPlatform();
 }

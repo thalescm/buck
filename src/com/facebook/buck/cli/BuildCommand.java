@@ -22,6 +22,7 @@ import static com.facebook.buck.distributed.ClientStatsTracker.DistBuildClientSt
 import static com.facebook.buck.distributed.ClientStatsTracker.DistBuildClientStat.PERFORM_LOCAL_BUILD;
 import static com.facebook.buck.distributed.ClientStatsTracker.DistBuildClientStat.POST_BUILD_ANALYSIS;
 import static com.facebook.buck.distributed.ClientStatsTracker.DistBuildClientStat.POST_DISTRIBUTED_BUILD_LOCAL_STEPS;
+import static com.facebook.buck.util.concurrent.MostExecutors.newMultiThreadExecutor;
 
 import com.facebook.buck.artifact_cache.config.ArtifactCacheBuckConfig;
 import com.facebook.buck.cli.output.Mode;
@@ -55,6 +56,7 @@ import com.facebook.buck.event.ConsoleEvent;
 import com.facebook.buck.event.listener.DistBuildClientEventListener;
 import com.facebook.buck.io.file.MoreFiles;
 import com.facebook.buck.io.filesystem.ProjectFilesystem;
+import com.facebook.buck.log.CommandThreadFactory;
 import com.facebook.buck.log.Logger;
 import com.facebook.buck.log.thrift.ThriftRuleKeyLogger;
 import com.facebook.buck.model.BuildTarget;
@@ -113,6 +115,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import java.io.IOException;
 import java.io.StringWriter;
@@ -128,6 +131,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -158,6 +162,7 @@ public class BuildCommand extends AbstractCommand {
 
   private static final String BUCK_GIT_COMMIT_KEY = "buck.git_commit";
   private static final String PENDING_STAMPEDE_ID = "PENDING_STAMPEDE_ID";
+  private static final int STAMPEDE_EXECUTOR_SHUTDOWN_TIMEOUT_MILLIS = 100;
 
   @Option(name = KEEP_GOING_LONG_ARG, usage = "Keep going when some targets can't be made.")
   private boolean keepGoing = false;
@@ -708,20 +713,36 @@ public class BuildCommand extends AbstractCommand {
                 .collect(Collectors.toSet()));
 
     return new AsyncJobStateAndCells(
+        distributedBuildFileHashes,
         executorService.submit(
             () -> {
-              BuildJobState state =
-                  DistBuildState.dump(
-                      cellIndexer,
-                      distributedBuildFileHashes,
-                      targetGraphCodec,
-                      targetGraphAndBuildTargets.getTargetGraph(),
-                      buildTargets,
-                      clientStatsTracker);
-              LOG.info("Finished computing serializable distributed build state.");
-              return state;
+              try {
+                BuildJobState state =
+                    DistBuildState.dump(
+                        cellIndexer,
+                        distributedBuildFileHashes,
+                        targetGraphCodec,
+                        targetGraphAndBuildTargets.getTargetGraph(),
+                        buildTargets,
+                        clientStatsTracker);
+                LOG.info("Finished computing serializable distributed build state.");
+                return state;
+              } catch (InterruptedException ex) {
+                LOG.warn(
+                    ex,
+                    "Failed computing serializable distributed build state as interrupted. Local build probably finished first.");
+                Thread.currentThread().interrupt();
+                throw ex;
+              }
             }),
         cellIndexer);
+  }
+
+  private ListeningExecutorService createStampedeControllerExecutorService(int maxThreads) {
+    CommandThreadFactory stampedeCommandThreadFactory =
+        new CommandThreadFactory("StampedeController");
+    return MoreExecutors.listeningDecorator(
+        newMultiThreadExecutor(stampedeCommandThreadFactory, maxThreads));
   }
 
   private ExitCode executeDistBuild(
@@ -797,6 +818,9 @@ public class BuildCommand extends AbstractCommand {
     AtomicInteger localBuildExitCode =
         new AtomicInteger(com.facebook.buck.distributed.ExitCode.LOCAL_PENDING_EXIT_CODE.getCode());
     try (DistBuildService distBuildService = DistBuildFactory.newDistBuildService(params)) {
+      ListeningExecutorService stampedeControllerExecutor =
+          createStampedeControllerExecutorService(distBuildConfig.getControllerMaxThreadCount());
+
       LogStateTracker distBuildLogStateTracker =
           DistBuildFactory.newDistBuildLogStateTracker(
               params.getInvocationInfo().get().getLogDirectoryPath(), filesystem, distBuildService);
@@ -856,7 +880,7 @@ public class BuildCommand extends AbstractCommand {
                         distBuildService,
                         params,
                         distBuildConfig,
-                        executorService,
+                        stampedeControllerExecutor,
                         filesystem,
                         fileHashCache,
                         started,
@@ -898,6 +922,20 @@ public class BuildCommand extends AbstractCommand {
       // distributed build progress
       // TODO(alisdair): send a request to Frontend to terminate this build too.
       distributedBuildFuture.cancel(true);
+
+      // If local build finished before hashing was complete, it's important to cancel
+      // related Futures to avoid this operation blocking forever.
+      stateAndCells.cancel();
+
+      // stampedeControllerExecutor is now redundant. Kill it as soon as possible.
+      stampedeControllerExecutor.shutdown();
+      if (!stampedeControllerExecutor.awaitTermination(
+          STAMPEDE_EXECUTOR_SHUTDOWN_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+        LOG.warn(
+            "Stampede controller thread pool still running after build finished"
+                + " and timeout elapsed. Terminating..");
+        stampedeControllerExecutor.shutdownNow();
+      }
 
       // Publish details about all default rule keys that were cache misses.
       // A non-zero value suggests a problem that needs investigating.
@@ -1011,7 +1049,7 @@ public class BuildCommand extends AbstractCommand {
       DistBuildService distBuildService,
       CommandRunnerParams params,
       DistBuildConfig distBuildConfig,
-      WeightedListeningExecutorService executorService,
+      ListeningExecutorService executorService,
       ProjectFilesystem filesystem,
       FileHashCache fileHashCache,
       BuildEvent.DistBuildStarted started,
@@ -1414,13 +1452,23 @@ public class BuildCommand extends AbstractCommand {
   }
 
   private static class AsyncJobStateAndCells {
+    final DistBuildFileHashes distributedBuildFileHashes;
     final ListenableFuture<BuildJobState> asyncJobState;
     final DistBuildCellIndexer distBuildCellIndexer;
 
     AsyncJobStateAndCells(
-        ListenableFuture<BuildJobState> asyncJobState, DistBuildCellIndexer cellIndexer) {
+        DistBuildFileHashes distributedBuildFileHashes,
+        ListenableFuture<BuildJobState> asyncJobState,
+        DistBuildCellIndexer cellIndexer) {
+      this.distributedBuildFileHashes = distributedBuildFileHashes;
       this.asyncJobState = asyncJobState;
       this.distBuildCellIndexer = cellIndexer;
+    }
+
+    // Cancels any ongoing Future operations
+    protected void cancel() {
+      distributedBuildFileHashes.cancel();
+      asyncJobState.cancel(true);
     }
   }
 

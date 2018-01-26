@@ -41,7 +41,6 @@ import com.facebook.buck.io.filesystem.ProjectFilesystem;
 import com.facebook.buck.io.filesystem.TestProjectFilesystems;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetFactory;
-import com.facebook.buck.model.Pair;
 import com.facebook.buck.parser.Parser;
 import com.facebook.buck.parser.ParserConfig;
 import com.facebook.buck.parser.exceptions.BuildFileParseException;
@@ -70,6 +69,7 @@ import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.ProcessExecutor;
 import com.facebook.buck.util.RichStream;
 import com.facebook.buck.util.environment.Platform;
+import com.facebook.buck.util.types.Pair;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
@@ -814,7 +814,7 @@ public class InterCellIntegrationTest {
       assertTrue(Files.exists(dir));
     }
 
-    primary.runBuckCommand("clean").assertSuccess();
+    primary.runBuckCommand("clean", "--keep-cache").assertSuccess();
 
     for (Path dir : primaryDirs) {
       assertFalse(Files.exists(dir));
