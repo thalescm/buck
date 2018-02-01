@@ -33,7 +33,7 @@ import com.facebook.buck.event.BuckEventBusForTests;
 import com.facebook.buck.io.filesystem.ProjectFilesystem;
 import com.facebook.buck.io.filesystem.TestProjectFilesystems;
 import com.facebook.buck.model.BuildId;
-import com.facebook.buck.testutil.integration.TemporaryPaths;
+import com.facebook.buck.testutil.TemporaryPaths;
 import com.facebook.buck.util.ObjectMappers;
 import com.facebook.buck.util.network.FakeFailingScribeLogger;
 import com.facebook.buck.util.network.ScribeLogger;
@@ -46,6 +46,7 @@ import com.google.common.collect.ObjectArrays;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -303,7 +304,8 @@ public class OfflineScribeLoggerTest {
                 storedCategoriesWithLines.incrementAndGet();
               }
             }
-          });
+          },
+          MoreExecutors.directExecutor());
       return upload;
     }
 

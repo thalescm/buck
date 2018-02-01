@@ -631,7 +631,7 @@ class BuildFileProcessor(object):
                  watchman_use_glob_generator,
                  project_import_whitelist=None, implicit_includes=None,
                  extra_funcs=None, configs=None, env_vars=None,
-                 ignore_paths=None, freeze_globals=False):
+                 ignore_paths=None):
         if project_import_whitelist is None:
             project_import_whitelist = []
         if implicit_includes is None:
@@ -660,8 +660,6 @@ class BuildFileProcessor(object):
         self._configs = configs
         self._env_vars = env_vars
         self._ignore_paths = ignore_paths
-        self._freeze_globals = freeze_globals
-        self._native_module = self._create_native_module(BUILD_FUNCTIONS)
 
         lazy_functions = {}
         for func in BUILD_FUNCTIONS + extra_funcs:
@@ -673,8 +671,7 @@ class BuildFileProcessor(object):
             safe_modules_config=self.SAFE_MODULES_CONFIG,
             path_predicate=lambda path: is_in_dir(path, self._project_root))
 
-    def _create_native_module(self, build_functions):
-        # type: (List[Callable]) -> tuple
+    def _create_native_module(self):
         """
         Creates a native module exposing built-in Buck rules.
 
@@ -682,12 +679,10 @@ class BuildFileProcessor(object):
         "native.<native_rule>" syntax in their build files. For example,
         "native.java_library(...)" will use a native Java library rule.
 
-        :param build_functions:
-        :return:
+        :return: 'native' module struct.
         """
-        native_globals = {
-            f.__name__: f for f in build_functions
-        }
+        native_globals = {}
+        self._install_builtins(native_globals)
         assert 'glob' not in native_globals
         assert 'host_info' not in native_globals
         native_globals['glob'] = self._glob
@@ -748,8 +743,8 @@ class BuildFileProcessor(object):
             yield
 
     @staticmethod
-    def _merge_explicit_globals(src, dst, freeze_globals, whitelist=None, whitelist_mapping=None):
-        # type: (types.ModuleType, Dict[str, Any], bool, List[str], Dict[str, str]) -> None
+    def _merge_explicit_globals(src, dst, whitelist=None, whitelist_mapping=None):
+        # type: (types.ModuleType, Dict[str, Any], List[str], Dict[str, str]) -> None
         """Copy explicitly requested global definitions from one globals dict to another.
 
         If whitelist is set, only globals from the whitelist will be pulled in.
@@ -762,19 +757,13 @@ class BuildFileProcessor(object):
             for symbol in whitelist:
                 if symbol not in src.__dict__:
                     raise KeyError("\"%s\" is not defined in %s" % (symbol, src.__name__))
-                value = src.__dict__[symbol]
-                if freeze_globals:
-                    value = BuildFileProcessor._freeze(value)
-                dst[symbol] = value
+                dst[symbol] = src.__dict__[symbol]
 
         if whitelist_mapping is not None:
             for exported_name, symbol in whitelist_mapping.iteritems():
                 if symbol not in src.__dict__:
                     raise KeyError("\"%s\" is not defined in %s" % (symbol, src.__name__))
-                value = src.__dict__[symbol]
-                if freeze_globals:
-                    value = BuildFileProcessor._freeze(value)
-                dst[exported_name] = value
+                dst[exported_name] = src.__dict__[symbol]
 
     def _merge_globals(self, mod, dst):
         # type: (types.ModuleType, Dict[str, Any]) -> None
@@ -796,25 +785,7 @@ class BuildFileProcessor(object):
             block_copying_module = not hasattr(mod, '__all__') and isinstance(
                 mod.__dict__[key], types.ModuleType)
             if not key.startswith('_') and key not in hidden and not block_copying_module:
-                value = mod.__dict__[key]
-                if self._freeze_globals:
-                    value = BuildFileProcessor._freeze(value)
-                dst[key] = value
-
-    @staticmethod
-    def _freeze(value):
-        # type: (Any) -> Any
-        """
-        Returns a read-only version of the passed value instance.
-
-        Note: mutable nested fields can still be modified.
-        """
-        if isinstance(value, list):
-            return tuple(value)
-        elif isinstance(value, set):
-            return frozenset(value)
-        # TODO(ttsugrii): handle other types
-        return value
+                dst[key] = mod.__dict__[key]
 
     def _update_functions(self, build_env):
         """
@@ -1010,7 +981,7 @@ class BuildFileProcessor(object):
         # into it's symbol table.
         frame = get_caller_frame(skip=['_functools', __name__])
         BuildFileProcessor._merge_explicit_globals(
-            module, frame.f_globals, self._freeze_globals, symbols, symbol_kwargs,
+            module, frame.f_globals, symbols, symbol_kwargs,
         )
 
         # Pull in the include's accounting of its own referenced includes
@@ -1182,7 +1153,7 @@ class BuildFileProcessor(object):
                 'struct': Struct,
                 'provider': self._provider,
                 'host_info': self._host_info,
-                'native': self._native_module,
+                'native': self._create_native_module(),
             }
 
             # Don't include implicit includes if the current file being
@@ -1545,10 +1516,6 @@ def main():
         '--build_file_import_whitelist',
         action='append',
         dest='build_file_import_whitelist')
-    parser.add_option(
-        '--freeze_globals',
-        action='store_true',
-        help='Do not allow mutations of included globals.')
     (options, args) = parser.parse_args()
 
     # Even though project_root is absolute path, it may not be concise. For
@@ -1601,8 +1568,7 @@ def main():
         project_import_whitelist=options.build_file_import_whitelist or [],
         implicit_includes=options.include or [],
         configs=configs,
-        ignore_paths=ignore_paths,
-        freeze_globals=options.freeze_globals)
+        ignore_paths=ignore_paths)
 
     # While processing, we'll write exceptions as diagnostic messages
     # to the parent then re-raise them to crash the process. While

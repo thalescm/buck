@@ -41,11 +41,13 @@ import com.facebook.buck.rules.keys.DefaultRuleKeyCache;
 import com.facebook.buck.rules.keys.EventPostingRuleKeyCacheScope;
 import com.facebook.buck.rules.keys.RuleKeyCacheScope;
 import com.facebook.buck.rules.keys.RuleKeyFactories;
+import com.facebook.buck.rules.keys.TrackedRuleKeyCache;
 import com.facebook.buck.step.DefaultStepRunner;
 import com.facebook.buck.step.ExecutionContext;
 import com.facebook.buck.step.ExecutorPool;
 import com.facebook.buck.util.DefaultProcessExecutor;
 import com.facebook.buck.util.MoreExceptions;
+import com.facebook.buck.util.cache.InstrumentingCacheStatsTracker;
 import com.facebook.buck.util.concurrent.ConcurrencyLimit;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -121,13 +123,16 @@ final class JavaBuildGraphProcessor {
       BuildRuleResolver buildRuleResolver =
           new SingleThreadedBuildRuleResolver(
               graph, new DefaultTargetNodeToBuildRuleTransformer(), params.getBuckEventBus());
+      SourcePathRuleFinder sourcePathRuleFinder = new SourcePathRuleFinder(buildRuleResolver);
       CachingBuildEngineBuckConfig cachingBuildEngineBuckConfig =
           params.getBuckConfig().getView(CachingBuildEngineBuckConfig.class);
       LocalCachingBuildEngineDelegate cachingBuildEngineDelegate =
           new LocalCachingBuildEngineDelegate(params.getFileHashCache());
       try (RuleKeyCacheScope<RuleKey> ruleKeyCacheScope =
               new EventPostingRuleKeyCacheScope<>(
-                  params.getBuckEventBus(), new DefaultRuleKeyCache<>());
+                  params.getBuckEventBus(),
+                  new TrackedRuleKeyCache<>(
+                      new DefaultRuleKeyCache<>(), new InstrumentingCacheStatsTracker()));
           CachingBuildEngine buildEngine =
               new CachingBuildEngine(
                   cachingBuildEngineDelegate,
@@ -139,6 +144,8 @@ final class JavaBuildGraphProcessor {
                   cachingBuildEngineBuckConfig.getBuildMaxDepFileCacheEntries(),
                   cachingBuildEngineBuckConfig.getBuildArtifactCacheSizeLimit(),
                   buildRuleResolver,
+                  sourcePathRuleFinder,
+                  DefaultSourcePathResolver.from(sourcePathRuleFinder),
                   params.getBuildInfoStoreManager(),
                   cachingBuildEngineBuckConfig.getResourceAwareSchedulingInfo(),
                   cachingBuildEngineBuckConfig.getConsoleLogBuildRuleFailuresInline(),

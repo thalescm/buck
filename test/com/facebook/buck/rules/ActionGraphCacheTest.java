@@ -26,7 +26,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 import com.facebook.buck.config.ActionGraphParallelizationMode;
-import com.facebook.buck.cxx.CxxHeadersExperiment;
 import com.facebook.buck.event.ActionGraphEvent;
 import com.facebook.buck.event.BuckEvent;
 import com.facebook.buck.event.BuckEventBus;
@@ -39,7 +38,7 @@ import com.facebook.buck.rules.keys.ContentAgnosticRuleKeyFactory;
 import com.facebook.buck.rules.keys.RuleKeyFieldLoader;
 import com.facebook.buck.rules.keys.config.TestRuleKeyConfigurationFactory;
 import com.facebook.buck.testutil.TargetGraphFactory;
-import com.facebook.buck.testutil.integration.TemporaryPaths;
+import com.facebook.buck.testutil.TemporaryPaths;
 import com.facebook.buck.util.RichStream;
 import com.facebook.buck.util.timing.IncrementingFakeClock;
 import com.facebook.buck.util.types.Pair;
@@ -314,10 +313,6 @@ public class ActionGraphCacheTest {
       experimentEvents =
           RichStream.from(trackedEvents.stream())
               .filter(ExperimentEvent.class)
-              .filter(
-                  event ->
-                      !(event.getEventName().equals(CxxSymlinkTreeHeadersExperiment.EXPERIMENT_NAME)
-                          || event.getEventName().equals(CxxHeadersExperiment.EXPERIMENT_NAME)))
               .collect(Collectors.toList());
       assertThat(
           "No experiment event is logged if not in experiment mode", experimentEvents, empty());
@@ -336,10 +331,6 @@ public class ActionGraphCacheTest {
     experimentEvents =
         RichStream.from(trackedEvents.stream())
             .filter(ExperimentEvent.class)
-            .filter(
-                event ->
-                    !(event.getEventName().equals(CxxSymlinkTreeHeadersExperiment.EXPERIMENT_NAME)
-                        || event.getEventName().equals(CxxHeadersExperiment.EXPERIMENT_NAME)))
             .collect(Collectors.toList());
     assertThat(
         "EXPERIMENT mode should log either enabled or disabled.",
@@ -362,10 +353,6 @@ public class ActionGraphCacheTest {
     experimentEvents =
         RichStream.from(trackedEvents.stream())
             .filter(ExperimentEvent.class)
-            .filter(
-                event ->
-                    !(event.getEventName().equals(CxxSymlinkTreeHeadersExperiment.EXPERIMENT_NAME)
-                        || event.getEventName().equals(CxxHeadersExperiment.EXPERIMENT_NAME)))
             .collect(Collectors.toList());
     assertThat(
         "EXPERIMENT mode should log either enabled or disabled.",

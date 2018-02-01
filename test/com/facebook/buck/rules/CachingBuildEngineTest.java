@@ -85,7 +85,7 @@ import com.facebook.buck.step.TestExecutionContext;
 import com.facebook.buck.step.fs.WriteFileStep;
 import com.facebook.buck.testutil.DummyFileHashCache;
 import com.facebook.buck.testutil.FakeFileHashCache;
-import com.facebook.buck.testutil.integration.TemporaryPaths;
+import com.facebook.buck.testutil.TemporaryPaths;
 import com.facebook.buck.testutil.integration.ZipInspector;
 import com.facebook.buck.util.ExitCode;
 import com.facebook.buck.util.HumanReadableException;
@@ -3089,7 +3089,7 @@ public class CachingBuildEngineTest {
           pathResolver,
           ImmutableSet.of(input),
           ImmutableSet.of(input));
-      Path manifestPath = CachingBuildRuleBuilder.getManifestPath(rule);
+      Path manifestPath = ManifestRuleKeyManager.getManifestPath(rule);
       filesystem.mkdirs(manifestPath.getParent());
       try (OutputStream outputStream = filesystem.newFileOutputStream(manifestPath)) {
         manifest.serialize(outputStream);

@@ -49,7 +49,7 @@ import com.facebook.buck.testutil.TestConsole;
 import com.facebook.buck.util.ExitCode;
 import com.facebook.buck.util.FakeProcessExecutor;
 import com.facebook.buck.util.ProcessExecutor;
-import com.facebook.buck.util.cache.CacheStatsTracker;
+import com.facebook.buck.util.cache.NoOpCacheStatsTracker;
 import com.facebook.buck.util.cache.impl.StackedFileHashCache;
 import com.facebook.buck.util.environment.Platform;
 import com.facebook.buck.util.timing.DefaultClock;
@@ -151,6 +151,39 @@ public class CleanCommandTest extends EasyMockSupport {
   }
 
   @Test
+  public void testCleanCommandWithDryRun()
+      throws CmdLineException, IOException, InterruptedException {
+    CleanCommand cleanCommand = createCommandFromArgs("--dry-run");
+    CommandRunnerParams params = createCommandRunnerParams(cleanCommand, true);
+
+    ArtifactCacheBuckConfig artifactCacheBuckConfig =
+        ArtifactCacheBuckConfig.of(params.getBuckConfig());
+    ImmutableSet<DirCacheEntry> dirCacheEntries =
+        artifactCacheBuckConfig.getCacheEntries().getDirCacheEntries();
+
+    projectFilesystem.mkdirs(projectFilesystem.getBuckPaths().getScratchDir());
+    projectFilesystem.mkdirs(projectFilesystem.getBuckPaths().getGenDir());
+    projectFilesystem.mkdirs(projectFilesystem.getBuckPaths().getTrashDir());
+    projectFilesystem.mkdirs(projectFilesystem.getBuckPaths().getCacheDir());
+    // Create a "local" cache directory.
+    for (DirCacheEntry dirCacheEntry : dirCacheEntries) {
+      projectFilesystem.mkdirs(dirCacheEntry.getCacheDir());
+    }
+
+    // Simulate `buck clean`.
+    ExitCode exitCode = cleanCommand.run(params);
+    assertEquals(ExitCode.SUCCESS, exitCode);
+
+    assertTrue(projectFilesystem.exists(projectFilesystem.getBuckPaths().getScratchDir()));
+    assertTrue(projectFilesystem.exists(projectFilesystem.getBuckPaths().getGenDir()));
+    assertTrue(projectFilesystem.exists(projectFilesystem.getBuckPaths().getTrashDir()));
+    assertTrue(projectFilesystem.exists(projectFilesystem.getBuckPaths().getCacheDir()));
+    for (DirCacheEntry dirCacheEntry : dirCacheEntries) {
+      assertTrue(projectFilesystem.exists(dirCacheEntry.getCacheDir()));
+    }
+  }
+
+  @Test
   public void testCleanCommandWithAdditionalPaths()
       throws CmdLineException, IOException, InterruptedException {
     Path additionalPath = projectFilesystem.getPath("foo");
@@ -206,7 +239,7 @@ public class CleanCommandTest extends EasyMockSupport {
         new ByteArrayInputStream("".getBytes("UTF-8")),
         cell,
         new InstrumentedVersionedTargetGraphCache(
-            new VersionedTargetGraphCache(), new CacheStatsTracker()),
+            new VersionedTargetGraphCache(), new NoOpCacheStatsTracker()),
         new SingletonArtifactCacheFactory(new NoopArtifactCache()),
         createMock(TypeCoercerFactory.class),
         createMock(Parser.class),

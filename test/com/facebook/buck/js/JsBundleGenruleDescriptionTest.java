@@ -88,6 +88,10 @@ public class JsBundleGenruleDescriptionTest {
     setUpWithOptions(builderOptions().rewriteMisc(), extraFlavors);
   }
 
+  private void setupWithSkipResources(Flavor... extraFlavors) {
+    setUpWithOptions(builderOptions().skipResources(), extraFlavors);
+  }
+
   private void setUpWithOptions(JsBundleGenruleBuilder.Options options, Flavor... extraFlavors) {
     JsTestScenario scenario =
         JsTestScenario.builder().bundleWithDeps(options.jsBundle).bundleGenrule(options).build();
@@ -240,12 +244,17 @@ public class JsBundleGenruleDescriptionTest {
     assertEquals(
         jsBundleAndroid.getRequiredPackageables(), setup.genrule().getRequiredPackageables());
 
-    AndroidPackageableCollector collector = EasyMock.createMock(AndroidPackageableCollector.class);
-    expect(
-            collector.addAssetsDirectory(
-                setup.rule().getBuildTarget(), setup.rule().getSourcePathToOutput()))
-        .andReturn(collector);
-    replay(collector);
+    AndroidPackageableCollector collector = packageableCollectorMock(setup);
+    setup.genrule().addToCollector(collector);
+    verify(collector);
+  }
+
+  @Test
+  public void doesNotExposePackageablesWithSkipResources() {
+    setupWithSkipResources(JsFlavors.ANDROID);
+
+    assertEquals(ImmutableList.of(), setup.genrule().getRequiredPackageables());
+    AndroidPackageableCollector collector = packageableCollectorMock(setup);
     setup.genrule().addToCollector(collector);
     verify(collector);
   }
@@ -272,6 +281,23 @@ public class JsBundleGenruleDescriptionTest {
                 setup.genrule().getSourcePathToOutput(),
                 setup.jsBundle().getSourcePathToResources())
             .build();
+    assertEquals(expected, genruleBuilder.build());
+  }
+
+  @Test
+  public void addAppleBundleResourcesExposesNothingWithSkipResources() {
+    setupWithSkipResources();
+
+    AppleBundleResources.Builder genruleBuilder = AppleBundleResources.builder();
+    new JsBundleGenruleDescription(
+            new ToolchainProviderBuilder().build(), new NoSandboxExecutionStrategy())
+        .addAppleBundleResources(
+            genruleBuilder,
+            setup.targetNode(),
+            setup.rule().getProjectFilesystem(),
+            setup.resolver());
+
+    AppleBundleResources expected = AppleBundleResources.builder().build();
     assertEquals(expected, genruleBuilder.build());
   }
 
@@ -602,5 +628,15 @@ public class JsBundleGenruleDescriptionTest {
     BuildRuleResolver resolver() {
       return scenario.resolver;
     }
+  }
+
+  private static AndroidPackageableCollector packageableCollectorMock(TestSetup setup) {
+    AndroidPackageableCollector collector = EasyMock.createMock(AndroidPackageableCollector.class);
+    expect(
+            collector.addAssetsDirectory(
+                setup.rule().getBuildTarget(), setup.genrule().getSourcePathToOutput()))
+        .andReturn(collector);
+    replay(collector);
+    return collector;
   }
 }

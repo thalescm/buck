@@ -22,6 +22,7 @@ import com.facebook.buck.cxx.toolchain.CxxFlavorSanitizer;
 import com.facebook.buck.cxx.toolchain.CxxPlatform;
 import com.facebook.buck.cxx.toolchain.DebugPathSanitizer;
 import com.facebook.buck.cxx.toolchain.InferBuckConfig;
+import com.facebook.buck.cxx.toolchain.PchUnavailableException;
 import com.facebook.buck.cxx.toolchain.PicType;
 import com.facebook.buck.cxx.toolchain.Preprocessor;
 import com.facebook.buck.cxx.toolchain.linker.Linker;
@@ -204,13 +205,6 @@ abstract class AbstractCxxSourceRuleFactory {
             .stream()
             .flatMap(input -> input.getIncludes().stream())
             .collect(ImmutableList.toImmutableList());
-    if (!CxxHeadersExperiment.runExperiment()) {
-      try {
-        CxxHeaders.checkConflictingHeaders(result);
-      } catch (CxxHeaders.ConflictingHeadersException e) {
-        throw e.getHumanReadableExceptionForBuildTarget(getBaseBuildTarget());
-      }
-    }
     return result;
   }
 
@@ -571,9 +565,31 @@ abstract class AbstractCxxSourceRuleFactory {
       return Optional.empty();
     }
 
-    return Optional.of(
-        requirePrecompiledHeaderBuildRule(
-            preprocessorDelegateValue, source.getType(), source.getFlags()));
+    if (canUsePrecompiledHeaders(source.getType())) {
+      return Optional.of(
+          requirePrecompiledHeaderBuildRule(
+              preprocessorDelegateValue, source.getType(), source.getFlags()));
+    } else {
+      // !canPrecompile: disabled w/ config, environment, etc.
+      if (getPrecompiledHeader().isPresent()) {
+        final String message =
+            "Precompiled header was requested for rule \""
+                + this.getBaseBuildTarget().toString()
+                + "\", but unavailable in current environment (not supported by preprocessor, "
+                + "source file language, 'cxx.pch_enabled' option).";
+        switch (getCxxBuckConfig().getPchUnavailableMode()) {
+          case ERROR:
+            throw new PchUnavailableException(message);
+
+          case WARN:
+            LOG.warn(message);
+            LOG.warn("Continuing without PCH.");
+        }
+      }
+
+      // Not a PCH (and is a prefix header, ok to use un-precompiled), or just warned about it.
+      return Optional.empty();
+    }
   }
 
   @VisibleForTesting
@@ -621,7 +637,6 @@ abstract class AbstractCxxSourceRuleFactory {
     PreInclude pre = getPreInclude().get();
 
     return pre.getPrecompiledHeader(
-        /* canPrecompile */ canUsePrecompiledHeaders(sourceType),
         preprocessorDelegateCacheValue.getPreprocessorDelegate(),
         (DependencyAggregation) requireAggregatedPreprocessDepsRule(),
         computeCompilerFlags(sourceType, sourceFlags),

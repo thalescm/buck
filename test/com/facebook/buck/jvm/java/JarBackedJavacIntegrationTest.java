@@ -16,9 +16,10 @@
 
 package com.facebook.buck.jvm.java;
 
+import com.facebook.buck.testutil.ProcessResult;
+import com.facebook.buck.testutil.TemporaryPaths;
 import com.facebook.buck.testutil.integration.BuckBuildLog;
 import com.facebook.buck.testutil.integration.ProjectWorkspace;
-import com.facebook.buck.testutil.integration.TemporaryPaths;
 import com.facebook.buck.testutil.integration.TestDataHelper;
 import java.io.IOException;
 import org.junit.Before;
@@ -39,7 +40,7 @@ public class JarBackedJavacIntegrationTest {
 
   @Test
   public void testJarBackedJavacFromJavaLibrary() throws IOException {
-    ProjectWorkspace.ProcessResult buildResult = workspace.runBuckBuild("//:lib");
+    ProcessResult buildResult = workspace.runBuckBuild("//:lib");
     buildResult.assertSuccess();
   }
 
@@ -49,7 +50,7 @@ public class JarBackedJavacIntegrationTest {
   }
 
   private void runTestForCacheableJavaLibraryBuild(String[] args) throws IOException {
-    ProjectWorkspace.ProcessResult buildResult = workspace.runBuckBuild(args);
+    ProcessResult buildResult = workspace.runBuckBuild(args);
     BuckBuildLog buildLog = workspace.getBuildLog();
     buildResult.assertSuccess();
     buildLog.assertTargetBuiltLocally("//:lib");

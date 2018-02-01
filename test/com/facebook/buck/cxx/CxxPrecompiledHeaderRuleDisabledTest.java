@@ -17,14 +17,16 @@
 package com.facebook.buck.cxx;
 
 import com.facebook.buck.io.filesystem.ProjectFilesystem;
+import com.facebook.buck.testutil.TemporaryPaths;
 import com.facebook.buck.testutil.integration.ProjectWorkspace;
-import com.facebook.buck.testutil.integration.TemporaryPaths;
 import com.facebook.buck.testutil.integration.TestDataHelper;
 import java.io.IOException;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
+@Ignore
 public class CxxPrecompiledHeaderRuleDisabledTest {
 
   @Rule public TemporaryPaths tmp = new TemporaryPaths();
