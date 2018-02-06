@@ -24,7 +24,7 @@ public class AnnotationProcessor extends AbstractProcessor {
       try {
         JavaFileObject sourceFile = filer.createSourceFile("com.example.ap.Test");
         try (OutputStream out = sourceFile.openOutputStream()) {
-          out.write("package com.example.ap; class Test { }".getBytes());
+          out.write("package com.example.ap; class Test { public void generatedFn() {} }".getBytes());
         }
       } catch (IOException e) {
         throw new AssertionError(e);

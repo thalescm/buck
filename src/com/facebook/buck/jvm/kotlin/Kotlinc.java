@@ -50,4 +50,6 @@ public interface Kotlinc extends Tool {
   Path getAPPaths();
 
   Path getStdlibPath();
+
+  Path getToolsPath();
 }

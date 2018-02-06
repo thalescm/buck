@@ -18,6 +18,7 @@ package com.facebook.buck.jvm.kotlin;
 
 import com.facebook.buck.config.BuckConfig;
 import com.facebook.buck.io.ExecutableFinder;
+import com.facebook.buck.jvm.java.JavaBuckConfig;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.util.HumanReadableException;
 import com.google.common.collect.ImmutableSet;
@@ -30,13 +31,14 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 public class KotlinBuckConfig {
+
   private static final String SECTION = "kotlin";
-  private static final String JAVA_SECTION = "java";
 
   private static final Path DEFAULT_KOTLIN_COMPILER = Paths.get("kotlinc");
 
   private final BuckConfig delegate;
-  private @Nullable Path kotlinHome;
+  private @Nullable
+  Path kotlinHome;
 
   public KotlinBuckConfig(BuckConfig delegate) {
     this.delegate = delegate;
@@ -51,10 +53,13 @@ public class KotlinBuckConfig {
               delegate.getPathSourcePath(getPathToStdlibJar()),
               delegate.getPathSourcePath(getPathToReflectJar()),
               delegate.getPathSourcePath(getPathToScriptRuntimeJar()),
-              delegate.getPathSourcePath(getPathToCompilerJar()),
-              delegate.getPathSourcePath(getPathToTools()));
+              delegate.getPathSourcePath(getPathToCompilerJar()));
 
-      return new JarBackedReflectedKotlinc(classpathEntries, getPathToAP(), getPathToStdlibJar());
+      return new JarBackedReflectedKotlinc(
+          classpathEntries,
+          getPathToAP(),
+          getPathToStdlibJar(),
+          getPathToTools());
     }
   }
 
@@ -70,45 +75,38 @@ public class KotlinBuckConfig {
     return new ExecutableFinder().getExecutable(compilerPath, delegate.getEnvironment());
   }
 
+  private Path getPathToJar(String jarName) {
+    Path reflect = getKotlinHome().resolve(jarName + ".jar");
+    if (Files.isRegularFile(reflect)) {
+      return reflect.normalize();
+    }
+
+    reflect = getKotlinHome().resolve(Paths.get("lib", jarName + ".jar"));
+    if (Files.isRegularFile(reflect)) {
+      return reflect.normalize();
+    }
+
+    reflect = getKotlinHome().resolve(Paths.get("libexec", "lib", jarName + ".jar"));
+    if (Files.isRegularFile(reflect)) {
+      return reflect.normalize();
+    }
+
+    throw new HumanReadableException(
+        "Could not resolve " + jarName + " JAR location (kotlin home:" + getKotlinHome() + ").");
+  }
+
   /**
    * Get the path to the Kotlin runtime jar.
    *
    * @return the Kotlin runtime jar path
    */
   Path getPathToStdlibJar() {
-    Path stdlib = getKotlinHome().resolve("kotlin-stdlib.jar");
-    if (Files.isRegularFile(stdlib)) {
-      return stdlib.normalize();
+    try {
+      return getPathToJar("kotlin-stdlib");
+    } catch (HumanReadableException e) {
+      // TODO: Check if kt version < 1.1
+      return getPathToJar("kotlin-runtime");
     }
-
-    stdlib = getKotlinHome().resolve(Paths.get("lib", "kotlin-stdlib.jar"));
-    if (Files.isRegularFile(stdlib)) {
-      return stdlib.normalize();
-    }
-
-    stdlib = getKotlinHome().resolve(Paths.get("libexec", "lib", "kotlin-stdlib.jar"));
-    if (Files.isRegularFile(stdlib)) {
-      return stdlib.normalize();
-    }
-
-    // Support for Kotlin < 1.1 ... kotlin-stdlib used to be kotlin-runtime.
-    stdlib = getKotlinHome().resolve("kotlin-runtime.jar");
-    if (Files.isRegularFile(stdlib)) {
-      return stdlib.normalize();
-    }
-
-    stdlib = getKotlinHome().resolve(Paths.get("lib", "kotlin-runtime.jar"));
-    if (Files.isRegularFile(stdlib)) {
-      return stdlib.normalize();
-    }
-
-    stdlib = getKotlinHome().resolve(Paths.get("libexec", "lib", "kotlin-runtime.jar"));
-    if (Files.isRegularFile(stdlib)) {
-      return stdlib.normalize();
-    }
-
-    throw new HumanReadableException(
-        "Could not resolve kotlin stdlib JAR location (kotlin home:" + getKotlinHome() + ").");
   }
 
   /**
@@ -117,23 +115,7 @@ public class KotlinBuckConfig {
    * @return the Kotlin reflection jar path
    */
   Path getPathToReflectJar() {
-    Path reflect = getKotlinHome().resolve("kotlin-reflect.jar");
-    if (Files.isRegularFile(reflect)) {
-      return reflect.normalize();
-    }
-
-    reflect = getKotlinHome().resolve(Paths.get("lib", "kotlin-reflect.jar"));
-    if (Files.isRegularFile(reflect)) {
-      return reflect.normalize();
-    }
-
-    reflect = getKotlinHome().resolve(Paths.get("libexec", "lib", "kotlin-reflect.jar"));
-    if (Files.isRegularFile(reflect)) {
-      return reflect.normalize();
-    }
-
-    throw new HumanReadableException(
-        "Could not resolve kotlin reflect JAR location (kotlin home:" + getKotlinHome() + ").");
+    return getPathToJar("kotlin-reflect");
   }
 
   /**
@@ -142,25 +124,7 @@ public class KotlinBuckConfig {
    * @return the Kotlin script runtime jar path
    */
   Path getPathToScriptRuntimeJar() {
-    Path script = getKotlinHome().resolve("kotlin-script-runtime.jar");
-    if (Files.isRegularFile(script)) {
-      return script.normalize();
-    }
-
-    script = getKotlinHome().resolve(Paths.get("lib", "kotlin-script-runtime.jar"));
-    if (Files.isRegularFile(script)) {
-      return script.normalize();
-    }
-
-    script = getKotlinHome().resolve(Paths.get("libexec", "lib", "kotlin-script-runtime.jar"));
-    if (Files.isRegularFile(script)) {
-      return script.normalize();
-    }
-
-    throw new HumanReadableException(
-        "Could not resolve kotlin script runtime JAR location (kotlin home:"
-            + getKotlinHome()
-            + ").");
+    return getPathToJar("kotlin-script-runtime");
   }
 
   /**
@@ -169,23 +133,7 @@ public class KotlinBuckConfig {
    * @return the Kotlin compiler jar path
    */
   Path getPathToCompilerJar() {
-    Path compiler = getKotlinHome().resolve("kotlin-compiler.jar");
-    if (Files.isRegularFile(compiler)) {
-      return compiler.normalize();
-    }
-
-    compiler = getKotlinHome().resolve(Paths.get("lib", "kotlin-compiler.jar"));
-    if (Files.isRegularFile(compiler)) {
-      return compiler.normalize();
-    }
-
-    compiler = getKotlinHome().resolve(Paths.get("libexec", "lib", "kotlin-compiler.jar"));
-    if (Files.isRegularFile(compiler)) {
-      return compiler.normalize();
-    }
-
-    throw new HumanReadableException(
-        "Could not resolve kotlin compiler JAR location (kotlin home:" + getKotlinHome() + ").");
+    return getPathToJar("kotlin-compiler");
   }
 
   /**
@@ -194,26 +142,7 @@ public class KotlinBuckConfig {
    * @return the Kotlin annotation processing jar path
    */
   Path getPathToAP() {
-    Path compiler = getKotlinHome().resolve("kotlin-annotation-processing.jar");
-    if (Files.isRegularFile(compiler)) {
-      return compiler.normalize();
-    }
-
-    compiler = getKotlinHome().resolve(Paths.get("lib", "kotlin-annotation-processing.jar"));
-    if (Files.isRegularFile(compiler)) {
-      return compiler.normalize();
-    }
-
-    compiler =
-        getKotlinHome().resolve(Paths.get("libexec", "lib", "kotlin-annotation-processing.jar"));
-    if (Files.isRegularFile(compiler)) {
-      return compiler.normalize();
-    }
-
-    throw new HumanReadableException(
-        "Could not resolve kotlin annotation processing JAR location (kotlin home:"
-            + getKotlinHome()
-            + ").");
+    return getPathToJar("kotlin-annotation-processing");
   }
 
   /**
@@ -247,10 +176,10 @@ public class KotlinBuckConfig {
    * Find the Kotlin home (installation) directory by searching in this order: <br>
    *
    * <ul>
-   *   <li>If the "kotlin_home" directory is specified in .buckconfig then use it.
-   *   <li>Check the environment for a KOTLIN_HOME variable, if defined then use it.
-   *   <li>Resolve "kotlinc" with an ExecutableFinder, and if found then deduce the kotlin home
-   *       directory from it.
+   * <li>If the "kotlin_home" directory is specified in .buckconfig then use it.
+   * <li>Check the environment for a KOTLIN_HOME variable, if defined then use it.
+   * <li>Resolve "kotlinc" with an ExecutableFinder, and if found then deduce the kotlin home
+   * directory from it.
    * </ul>
    *
    * @return the Kotlin home path
@@ -314,6 +243,7 @@ public class KotlinBuckConfig {
   private Path getJavaHome() {
     Map<String, String> environment = System.getenv();
     try {
+      String JAVA_SECTION = "java";
       // Check the buck configuration for a specified kotlin home
       Optional<String> value = delegate.getValue(JAVA_SECTION, "java_home");
       if (value.isPresent()) {

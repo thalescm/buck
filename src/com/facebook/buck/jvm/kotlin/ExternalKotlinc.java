@@ -169,6 +169,11 @@ public class ExternalKotlinc implements Kotlinc, RuleKeyAppendable {
   }
 
   @Override
+  public Path getToolsPath() {
+    throw new IllegalStateException("Not supported yet");
+  }
+
+  @Override
   public ImmutableMap<String, String> getEnvironment(SourcePathResolver resolver) {
     return ImmutableMap.of();
   }
