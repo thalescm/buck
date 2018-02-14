@@ -38,8 +38,8 @@ import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.SourcePathRuleFinder;
 import com.facebook.buck.rules.args.Arg;
+import com.facebook.buck.rules.args.WriteToFileArg;
 import com.facebook.buck.rules.keys.SupportsInputBasedRuleKey;
-import com.facebook.buck.rules.macros.OutputToFileExpanderUtils;
 import com.facebook.buck.rules.macros.WorkerMacroArg;
 import com.facebook.buck.sandbox.SandboxExecutionStrategy;
 import com.facebook.buck.sandbox.SandboxProperties;
@@ -336,9 +336,7 @@ public class Genrule extends AbstractBuildRuleWithDeclaredAndExtraDeps
             getProjectFilesystem().resolve(pathToTmpDirectory).toString(),
             getProjectFilesystem().resolve(pathToOutDirectory).toString(),
             getProjectFilesystem()
-                .resolve(
-                    OutputToFileExpanderUtils.getMacroPath(
-                        getProjectFilesystem(), getBuildTarget()))
+                .resolve(WriteToFileArg.getMacroPath(getProjectFilesystem(), getBuildTarget()))
                 .toString())
         .addAllowedToReadMetadataPaths(
             getProjectFilesystem().getRootPath().toAbsolutePath().toString())
@@ -377,9 +375,9 @@ public class Genrule extends AbstractBuildRuleWithDeclaredAndExtraDeps
   public WorkerShellStep createWorkerShellStep(BuildContext context) {
     return new WorkerShellStep(
         getBuildTarget(),
-        convertToWorkerJobParams(cmd),
-        convertToWorkerJobParams(bash),
-        convertToWorkerJobParams(cmdExe),
+        convertToWorkerJobParams(context.getSourcePathResolver(), cmd),
+        convertToWorkerJobParams(context.getSourcePathResolver(), bash),
+        convertToWorkerJobParams(context.getSourcePathResolver(), cmdExe),
         new WorkerProcessPoolFactory(getProjectFilesystem())) {
       @Override
       protected ImmutableMap<String, String> getEnvironmentVariables() {
@@ -390,12 +388,13 @@ public class Genrule extends AbstractBuildRuleWithDeclaredAndExtraDeps
     };
   }
 
-  private static Optional<WorkerJobParams> convertToWorkerJobParams(Optional<Arg> arg) {
+  private static Optional<WorkerJobParams> convertToWorkerJobParams(
+      SourcePathResolver resolver, Optional<Arg> arg) {
     return arg.map(
         arg1 -> {
           WorkerMacroArg workerMacroArg = (WorkerMacroArg) arg1;
           return WorkerJobParams.of(
-              workerMacroArg.getJobArgs(),
+              workerMacroArg.getJobArgs(resolver),
               WorkerProcessParams.of(
                   workerMacroArg.getTempDir(),
                   workerMacroArg.getStartupCommand(),
@@ -502,7 +501,10 @@ public class Genrule extends AbstractBuildRuleWithDeclaredAndExtraDeps
     }
     commands.add(
         new SymlinkTreeStep(
-            getProjectFilesystem(), pathToSrcDirectory, ImmutableSortedMap.copyOf(linksBuilder)));
+            "genrule_srcs",
+            getProjectFilesystem(),
+            pathToSrcDirectory,
+            ImmutableSortedMap.copyOf(linksBuilder)));
   }
 
   /** Get the output name of the generated file, as listed in the BUCK file. */

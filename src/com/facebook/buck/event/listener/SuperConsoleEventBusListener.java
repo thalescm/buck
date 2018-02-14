@@ -48,8 +48,6 @@ import com.facebook.buck.util.Console;
 import com.facebook.buck.util.MoreIterables;
 import com.facebook.buck.util.environment.ExecutionEnvironment;
 import com.facebook.buck.util.timing.Clock;
-import com.facebook.buck.util.types.Pair;
-import com.facebook.buck.util.unit.SizeUnit;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
@@ -313,25 +311,22 @@ public class SuperConsoleEventBusListener extends AbstractConsoleEventBusListene
 
     // Synchronize on the DirtyPrintStreamDecorator to prevent interlacing of output.
     // We don't log immediately so we avoid locking the console handler to avoid deadlocks.
-    boolean stdoutDirty;
     boolean stderrDirty;
-    synchronized (console.getStdOut()) {
-      synchronized (console.getStdErr()) {
-        // If another source has written to stderr or stdout, stop rendering with the SuperConsole.
-        // We need to do this to keep our updates consistent.
-        stdoutDirty = console.getStdOut().isDirty();
-        stderrDirty = console.getStdErr().isDirty();
-        if (stdoutDirty || stderrDirty) {
-          stopRenderScheduler();
-        } else if (previousNumLinesPrinted != 0 || !lines.isEmpty() || !logLines.isEmpty()) {
-          String fullFrame = renderFullFrame(logLines, lines, previousNumLinesPrinted);
-          console.getStdErr().getRawStream().print(fullFrame);
-        }
+    synchronized (console.getStdErr()) {
+      // If another source has written to stderr, stop rendering with the SuperConsole.
+      // We need to do this to keep our updates consistent. We don't do this with stdout
+      // because we don't use it directly except in a couple of cases, where the
+      // synchronization in DirtyPrintStreamDecorator should be sufficient
+      stderrDirty = console.getStdErr().isDirty();
+      if (stderrDirty) {
+        stopRenderScheduler();
+      } else if (previousNumLinesPrinted != 0 || !lines.isEmpty() || !logLines.isEmpty()) {
+        String fullFrame = renderFullFrame(logLines, lines, previousNumLinesPrinted);
+        console.getStdErr().getRawStream().print(fullFrame);
       }
     }
-    if (stdoutDirty || stderrDirty) {
-      LOG.debug(
-          "Stopping console output (stdout dirty %s, stderr dirty %s).", stdoutDirty, stderrDirty);
+    if (stderrDirty) {
+      LOG.debug("Stopping console output (stderr was dirty).");
     }
   }
 
@@ -480,8 +475,7 @@ public class SuperConsoleEventBusListener extends AbstractConsoleEventBusListene
     }
 
     // TODO(shivanker): Add a similar source file upload line for distributed build.
-    Pair<Long, SizeUnit> bytesDownloaded = networkStatsKeeper.getBytesDownloaded();
-    if (bytesDownloaded.getFirst() > 0 || !this.hideEmptyDownload) {
+    if (networkStatsKeeper.getRemoteDownloadedArtifactsCount() > 0 || !this.hideEmptyDownload) {
       lines.add(getNetworkStatsLine(buildFinished));
     }
 
@@ -605,11 +599,10 @@ public class SuperConsoleEventBusListener extends AbstractConsoleEventBusListene
     List<String> columns = new ArrayList<>();
 
     synchronized (distBuildStatusLock) {
-      columns.add("local status: " + stampedeLocalBuildStatus);
       if (!distBuildStatus.isPresent()) {
-        columns.add("dist status: init");
+        columns.add("remote status: init");
       } else {
-        columns.add("dist status: " + distBuildStatus.get().getStatus().toLowerCase());
+        columns.add("remote status: " + distBuildStatus.get().getStatus().toLowerCase());
 
         int totalUploadErrorsCount = 0;
         ImmutableList.Builder<CacheRateStatsKeeper.CacheRateStatsUpdateEvent> slaveCacheStats =
@@ -625,15 +618,16 @@ public class SuperConsoleEventBusListener extends AbstractConsoleEventBusListene
           }
         }
 
+        if (distBuildTotalRulesCount > 0) {
+          columns.add(
+              String.format("%d/%d jobs", distBuildFinishedRulesCount, distBuildTotalRulesCount));
+        }
+
         CacheRateStatsKeeper.CacheRateStatsUpdateEvent aggregatedCacheStats =
             CacheRateStatsKeeper.getAggregatedCacheRateStats(slaveCacheStats.build());
 
         if (aggregatedCacheStats.getTotalRulesCount() != 0) {
-          columns.add(
-              String.format(
-                  "%d [%.1f%%] cache miss",
-                  aggregatedCacheStats.getCacheMissCount(),
-                  aggregatedCacheStats.getCacheMissRate()));
+          columns.add(String.format("%.1f%% cache miss", aggregatedCacheStats.getCacheMissRate()));
 
           if (aggregatedCacheStats.getCacheErrorCount() != 0) {
             columns.add(
@@ -650,7 +644,8 @@ public class SuperConsoleEventBusListener extends AbstractConsoleEventBusListene
       }
     }
 
-    parseLine = Joiner.on(", ").join(columns);
+    String localStatus = String.format("local status: %s", stampedeLocalBuildStatus);
+    parseLine = localStatus + "; " + Joiner.on(", ").join(columns);
     return Strings.isNullOrEmpty(parseLine) ? Optional.empty() : Optional.of(parseLine);
   }
 
@@ -867,9 +862,7 @@ public class SuperConsoleEventBusListener extends AbstractConsoleEventBusListene
     }
     // We're about to write to stdout, so make sure we render the final frame before we do.
     render();
-    synchronized (console.getStdOut()) {
-      console.getStdOut().println(testOutput);
-    }
+    console.getStdOut().println(testOutput);
   }
 
   @Subscribe

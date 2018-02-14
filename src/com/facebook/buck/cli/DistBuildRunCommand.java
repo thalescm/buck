@@ -24,20 +24,20 @@ import com.facebook.buck.distributed.DistBuildService;
 import com.facebook.buck.distributed.DistBuildState;
 import com.facebook.buck.distributed.FileContentsProvider;
 import com.facebook.buck.distributed.FileMaterializationStatsTracker;
-import com.facebook.buck.distributed.build_slave.BuildRuleFinishedPublisher;
 import com.facebook.buck.distributed.build_slave.BuildSlaveTimingStatsTracker;
 import com.facebook.buck.distributed.build_slave.BuildSlaveTimingStatsTracker.SlaveEvents;
+import com.facebook.buck.distributed.build_slave.CoordinatorBuildRuleEventsPublisher;
 import com.facebook.buck.distributed.build_slave.DistBuildSlaveExecutor;
 import com.facebook.buck.distributed.build_slave.HealthCheckStatsTracker;
-import com.facebook.buck.distributed.build_slave.NoOpUnexpectedSlaveCacheMissTracker;
-import com.facebook.buck.distributed.build_slave.UnexpectedSlaveCacheMissTracker;
+import com.facebook.buck.distributed.build_slave.MinionBuildProgressTracker;
+import com.facebook.buck.distributed.build_slave.NoOpMinionBuildProgressTracker;
 import com.facebook.buck.distributed.thrift.BuildJobState;
 import com.facebook.buck.distributed.thrift.BuildSlaveRunId;
 import com.facebook.buck.distributed.thrift.StampedeId;
 import com.facebook.buck.event.BuckEventListener;
 import com.facebook.buck.event.ConsoleEvent;
 import com.facebook.buck.event.listener.DistBuildSlaveEventBusListener;
-import com.facebook.buck.event.listener.NoOpBuildRuleFinishedPublisher;
+import com.facebook.buck.event.listener.NoOpCoordinatorBuildRuleEventsPublisher;
 import com.facebook.buck.io.filesystem.ProjectFilesystem;
 import com.facebook.buck.rules.RuleKey;
 import com.facebook.buck.rules.keys.DefaultRuleKeyCache;
@@ -105,11 +105,11 @@ public class DistBuildRunCommand extends AbstractDistBuildCommand {
 
   @Nullable private DistBuildSlaveEventBusListener slaveEventListener;
 
-  private BuildRuleFinishedPublisher buildRuleFinishedPublisher =
-      new NoOpBuildRuleFinishedPublisher();
+  private CoordinatorBuildRuleEventsPublisher coordinatorBuildRuleEventsPublisher =
+      new NoOpCoordinatorBuildRuleEventsPublisher();
 
-  private UnexpectedSlaveCacheMissTracker unexpectedSlaveCacheMissTracker =
-      new NoOpUnexpectedSlaveCacheMissTracker();
+  private MinionBuildProgressTracker minionBuildProgressTracker =
+      new NoOpMinionBuildProgressTracker();
 
   private final FileMaterializationStatsTracker fileMaterializationStatsTracker =
       new FileMaterializationStatsTracker();
@@ -212,8 +212,8 @@ public class DistBuildRunCommand extends AbstractDistBuildCommand {
                   multiSourceFileContentsProvider,
                   healthCheckStatsTracker,
                   timeStatsTracker,
-                  getBuildRuleFinishedPublisher(),
-                  getUnexpectedSlaveCacheMissTracker(),
+                  getCoordinatorBuildRuleEventsPublisher(),
+                  getMinionBuildProgressTracker(),
                   ruleKeyCacheScope);
 
           distBuildExecutor.onBuildSlavePreparationCompleted(
@@ -335,17 +335,17 @@ public class DistBuildRunCommand extends AbstractDistBuildCommand {
               healthCheckStatsTracker,
               scheduledExecutorService);
 
-      buildRuleFinishedPublisher = slaveEventListener;
-      unexpectedSlaveCacheMissTracker = slaveEventListener;
+      coordinatorBuildRuleEventsPublisher = slaveEventListener;
+      minionBuildProgressTracker = slaveEventListener;
     }
   }
 
-  private BuildRuleFinishedPublisher getBuildRuleFinishedPublisher() {
-    return Preconditions.checkNotNull(buildRuleFinishedPublisher);
+  private CoordinatorBuildRuleEventsPublisher getCoordinatorBuildRuleEventsPublisher() {
+    return Preconditions.checkNotNull(coordinatorBuildRuleEventsPublisher);
   }
 
-  private UnexpectedSlaveCacheMissTracker getUnexpectedSlaveCacheMissTracker() {
-    return Preconditions.checkNotNull(unexpectedSlaveCacheMissTracker);
+  private MinionBuildProgressTracker getMinionBuildProgressTracker() {
+    return Preconditions.checkNotNull(minionBuildProgressTracker);
   }
 
   @Override
