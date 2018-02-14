@@ -43,6 +43,7 @@ import com.facebook.buck.step.Step;
 import com.facebook.buck.step.fs.MakeCleanDirectoryStep;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableList.Builder;
 import com.google.common.collect.ImmutableSortedSet;
@@ -55,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 public class KotlincToJarStepFactory extends CompileToJarStepFactory implements AddsToRuleKey {
 
@@ -200,7 +202,10 @@ public class KotlincToJarStepFactory extends CompileToJarStepFactory implements 
 
     ImmutableSortedSet<Path> javaSourceFiles =
         ImmutableSortedSet.copyOf(
-            sources.stream().filter(JAVA_PATH_MATCHER::matches).collect(Collectors.toSet()));
+            sources
+                .stream()
+                .filter((Predicate<Path>) input -> !KOTLIN_PATH_MATCHER.matches(input))
+                .collect(Collectors.toSet()));
 
     // Only invoke javac if we have java files.
     // Here we never run the annotation processor, kotlinc handles that. There is a special case
