@@ -27,12 +27,12 @@ import com.facebook.buck.distributed.FrontendService;
 import com.facebook.buck.distributed.MultiSourceContentsProvider;
 import com.facebook.buck.distributed.ServerContentsProvider;
 import com.facebook.buck.distributed.build_client.LogStateTracker;
-import com.facebook.buck.distributed.build_slave.BuildRuleFinishedPublisher;
 import com.facebook.buck.distributed.build_slave.BuildSlaveTimingStatsTracker;
+import com.facebook.buck.distributed.build_slave.CoordinatorBuildRuleEventsPublisher;
 import com.facebook.buck.distributed.build_slave.DistBuildSlaveExecutor;
 import com.facebook.buck.distributed.build_slave.DistBuildSlaveExecutorArgs;
 import com.facebook.buck.distributed.build_slave.HealthCheckStatsTracker;
-import com.facebook.buck.distributed.build_slave.UnexpectedSlaveCacheMissTracker;
+import com.facebook.buck.distributed.build_slave.MinionBuildProgressTracker;
 import com.facebook.buck.distributed.thrift.BuildSlaveRunId;
 import com.facebook.buck.distributed.thrift.StampedeId;
 import com.facebook.buck.io.filesystem.ProjectFilesystem;
@@ -123,8 +123,8 @@ public abstract class DistBuildFactory {
       FileContentsProvider fileContentsProvider,
       HealthCheckStatsTracker healthCheckStatsTracker,
       BuildSlaveTimingStatsTracker timingStatsTracker,
-      BuildRuleFinishedPublisher buildRuleFinishedPublisher,
-      UnexpectedSlaveCacheMissTracker unexpectedSlaveCacheMissTracker,
+      CoordinatorBuildRuleEventsPublisher coordinatorBuildRuleEventsPublisher,
+      MinionBuildProgressTracker minionBuildProgressTracker,
       RuleKeyCacheScope<RuleKey> ruleKeyCacheScope) {
     Preconditions.checkArgument(state.getCells().size() > 0);
 
@@ -162,8 +162,8 @@ public abstract class DistBuildFactory {
                 .setProjectFilesystemFactory(params.getProjectFilesystemFactory())
                 .setTimingStatsTracker(timingStatsTracker)
                 .setKnownBuildRuleTypesProvider(params.getKnownBuildRuleTypesProvider())
-                .setBuildRuleFinishedPublisher(buildRuleFinishedPublisher)
-                .setUnexpectedSlaveCacheMissTracker(unexpectedSlaveCacheMissTracker)
+                .setCoordinatorBuildRuleEventsPublisher(coordinatorBuildRuleEventsPublisher)
+                .setMinionBuildProgressTracker(minionBuildProgressTracker)
                 .setHealthCheckStatsTracker(healthCheckStatsTracker)
                 .setRuleKeyCacheScope(ruleKeyCacheScope)
                 .build());

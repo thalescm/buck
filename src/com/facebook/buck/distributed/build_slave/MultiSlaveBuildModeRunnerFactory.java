@@ -67,7 +67,7 @@ public class MultiSlaveBuildModeRunnerFactory {
       Optional<BuildId> clientBuildId,
       boolean isLocalMinionAlsoRunning,
       Path logDirectoryPath,
-      BuildRuleFinishedPublisher buildRuleFinishedPublisher,
+      CoordinatorBuildRuleEventsPublisher coordinatorBuildRuleEventsPublisher,
       BuckEventBus eventBus,
       ListeningExecutorService executorService,
       ArtifactCache remoteCache,
@@ -100,7 +100,7 @@ public class MultiSlaveBuildModeRunnerFactory {
                                     distBuildConfig.isDeepRemoteBuildEnabled())
                                 .createBuildTargetsQueue(
                                     topLevelTargetsToBuild,
-                                    buildRuleFinishedPublisher,
+                                    coordinatorBuildRuleEventsPublisher,
                                     distBuildConfig.getMostBuildRulesFinishedPercentageThreshold());
                       } catch (Exception e) {
                         LOG.error(e, "Failed to create BuildTargetsQueue.");
@@ -130,14 +130,14 @@ public class MultiSlaveBuildModeRunnerFactory {
     ChromeTraceBuckConfig chromeTraceBuckConfig =
         distBuildConfig.getBuckConfig().getView(ChromeTraceBuckConfig.class);
 
-    Optional<URI> traceUploadUri = chromeTraceBuckConfig.getTraceUploadUri();
+    Optional<URI> traceUploadUri = chromeTraceBuckConfig.getTraceUploadUriIfEnabled();
 
     return new CoordinatorModeRunner(
         queueFuture,
         stampedeId,
         listener,
         logDirectoryPath,
-        buildRuleFinishedPublisher,
+        coordinatorBuildRuleEventsPublisher,
         distBuildService,
         clientBuildId,
         traceUploadUri,
@@ -158,7 +158,7 @@ public class MultiSlaveBuildModeRunnerFactory {
       String coordinatorAddress,
       OptionalInt coordinatorPort,
       DistBuildConfig distBuildConfig,
-      UnexpectedSlaveCacheMissTracker unexpectedCacheMissTracker,
+      MinionBuildProgressTracker minionBuildProgressTracker,
       double availableBuildCapacityRatio) {
     Preconditions.checkArgument(
         availableBuildCapacityRatio > 0, availableBuildCapacityRatio + " is not > 0");
@@ -199,7 +199,7 @@ public class MultiSlaveBuildModeRunnerFactory {
             .threadLimit,
         checker,
         distBuildConfig.getMinionPollLoopIntervalMillis(),
-        unexpectedCacheMissTracker,
+        minionBuildProgressTracker,
         distBuildConfig.getCoordinatorConnectionTimeoutMillis());
   }
 
@@ -219,8 +219,8 @@ public class MultiSlaveBuildModeRunnerFactory {
       BuildSlaveRunId buildSlaveRunId,
       ListenableFuture<BuildExecutor> localBuildExecutor,
       Path logDirectoryPath,
-      BuildRuleFinishedPublisher buildRuleFinishedPublisher,
-      UnexpectedSlaveCacheMissTracker unexpectedCacheMissTracker,
+      CoordinatorBuildRuleEventsPublisher coordinatorBuildRuleEventsPublisher,
+      MinionBuildProgressTracker minionBuildProgressTracker,
       BuckEventBus eventBus,
       ListeningExecutorService executorService,
       ArtifactCache remoteCache,
@@ -237,7 +237,7 @@ public class MultiSlaveBuildModeRunnerFactory {
             clientBuildId,
             true,
             logDirectoryPath,
-            buildRuleFinishedPublisher,
+            coordinatorBuildRuleEventsPublisher,
             eventBus,
             executorService,
             remoteCache,
@@ -255,7 +255,7 @@ public class MultiSlaveBuildModeRunnerFactory {
             LOCALHOST_ADDRESS,
             OptionalInt.empty(),
             distBuildConfig,
-            unexpectedCacheMissTracker,
+            minionBuildProgressTracker,
             coordinatorBuildCapacityRatio));
   }
 }

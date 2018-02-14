@@ -23,6 +23,7 @@ import com.facebook.buck.io.filesystem.ProjectFilesystem;
 import com.facebook.buck.log.Logger;
 import com.facebook.buck.rules.Cell;
 import com.facebook.buck.util.ExitCode;
+import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -75,10 +76,14 @@ public class CleanCommand extends AbstractCommand {
 
     // Remove dir cache.
     if (!keepCache) {
+      ImmutableList<String> excludedCaches = cell.getBuckConfig().getCleanExcludedCaches();
       pathsToDelete.add(projectFilesystem.getBuckPaths().getCacheDir());
       for (DirCacheEntry dirCacheEntry :
           ArtifactCacheBuckConfig.of(cell.getBuckConfig()).getCacheEntries().getDirCacheEntries()) {
-        pathsToDelete.add(dirCacheEntry.getCacheDir());
+        if (dirCacheEntry.getName().isPresent()
+            && !excludedCaches.contains(dirCacheEntry.getName().get())) {
+          pathsToDelete.add(dirCacheEntry.getCacheDir());
+        }
       }
     }
 
@@ -100,8 +105,12 @@ public class CleanCommand extends AbstractCommand {
     } else {
       // Remove all the paths.
       for (Path path : pathsToDelete) {
-        projectFilesystem.deleteRecursivelyIfExists(path);
-        LOG.debug("Removed path: " + path);
+        try {
+          projectFilesystem.deleteRecursivelyIfExists(path);
+          LOG.debug("Removed path: %s", path);
+        } catch (IOException e) {
+          LOG.warn(e, "Failed to remove path %s", path);
+        }
       }
     }
   }

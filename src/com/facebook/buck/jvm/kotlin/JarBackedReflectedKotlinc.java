@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.tools.ToolProvider;
 
 public class JarBackedReflectedKotlinc implements Kotlinc {
 
@@ -66,14 +67,17 @@ public class JarBackedReflectedKotlinc implements Kotlinc {
   @AddToRuleKey private final ImmutableSet<SourcePath> compilerClassPath;
   private final Path annotationProcessingClassPath;
   private final Path pathToStdlibJar;
+  private final Path pathToToolsJar;
 
   JarBackedReflectedKotlinc(
       ImmutableSet<SourcePath> compilerClassPath,
       Path annotationProcessingClassPath,
-      Path pathToStdlibJar) {
+      Path pathToStdlibJar,
+      Path pathToToolsJar) {
     this.compilerClassPath = compilerClassPath;
     this.annotationProcessingClassPath = annotationProcessingClassPath;
     this.pathToStdlibJar = pathToStdlibJar;
+    this.pathToToolsJar = pathToToolsJar;
   }
 
   @Override
@@ -107,6 +111,11 @@ public class JarBackedReflectedKotlinc implements Kotlinc {
   @Override
   public Path getStdlibPath() {
     return pathToStdlibJar;
+  }
+
+  @Override
+  public Path getToolsPath() {
+    return pathToToolsJar;
   }
 
   @Override
@@ -174,7 +183,7 @@ public class JarBackedReflectedKotlinc implements Kotlinc {
 
       ClassLoader classLoader =
           classLoaderCache.getClassLoaderForClassPath(
-              null /* parent classloader */,
+              ToolProvider.getSystemToolClassLoader(),
               ImmutableList.copyOf(
                   compilerClassPath
                       .stream()

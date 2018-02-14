@@ -84,4 +84,14 @@ abstract class AbstractProjectBuildFileParserOptions {
   abstract Optional<Long> getWatchmanQueryTimeoutMs();
 
   abstract List<String> getBuildFileImportWhitelist();
+
+  @Value.Default
+  public boolean getDisableImplicitNativeRules() {
+    return false;
+  }
+
+  @Value.Default
+  public boolean isWarnAboutDeprecatedSyntax() {
+    return true;
+  }
 }

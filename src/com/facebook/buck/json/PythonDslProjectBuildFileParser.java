@@ -325,6 +325,15 @@ public class PythonDslProjectBuildFileParser implements ProjectBuildFileParser {
     // Add ignore paths.
     argBuilder.add("--ignore_paths", ignorePathsJson.get().toString());
 
+    // Disable native rules if requested
+    if (options.getDisableImplicitNativeRules()) {
+      argBuilder.add("--disable_implicit_native_rules");
+    }
+
+    if (options.isWarnAboutDeprecatedSyntax()) {
+      argBuilder.add("--warn_about_deprecated_syntax");
+    }
+
     return argBuilder.build();
   }
 
