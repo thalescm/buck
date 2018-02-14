@@ -46,4 +46,8 @@ public interface Kotlinc extends Tool {
       Path pathToSrcsList);
 
   String getShortName();
+
+  Path getAPPaths();
+
+  Path getStdlibPath();
 }

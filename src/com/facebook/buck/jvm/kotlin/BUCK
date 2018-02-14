@@ -31,6 +31,7 @@ java_library_with_plugins(
         "//src/com/facebook/buck/rules/macros:macros",
         "//src/com/facebook/buck/shell:steps",
         "//src/com/facebook/buck/step:step",
+        "//src/com/facebook/buck/step/fs:fs",
         "//src/com/facebook/buck/toolchain:toolchain",
         "//src/com/facebook/buck/util:exceptions",
         "//src/com/facebook/buck/util:io",
