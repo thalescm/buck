@@ -1,6 +1,8 @@
 package com.facebook.buck.jvm.kotlin;
 
 
+import static com.facebook.buck.jvm.kotlin.KotlinAnnotationProcessorStepFactory.KAPT_GENERATED;
+
 import com.facebook.buck.io.filesystem.ProjectFilesystem;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
@@ -11,7 +13,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Ordering;
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.Optional;
 import org.immutables.value.Value;
 
@@ -38,32 +39,61 @@ public abstract class AbstractAnnotationProcessorParameters {
   public abstract Path getStubsPath();
   public abstract Path getIncrementalDataPath();
   public abstract Path getKaptGeneratedPath();
-
-  @Value.Default
-  public ImmutableMap<String, String> getAnnotationProcessorOptions() { return ImmutableMap.of(); }
-
-  @Value.Default
-  public ImmutableMap<String, String> getJavacArguments() { return ImmutableMap.of(); }
+  public abstract ImmutableMap<String, String> getAnnotationProcessorOptions();
+  public abstract ImmutableMap<String, String> getJavacArguments();
 
   public abstract static class Builder {
+
+    private Path resolvePath(
+        ProjectFilesystem projectFilesystem,
+        BuildTarget target,
+        Optional<String> intended,
+        String fallback) {
+      if (intended.isPresent()) {
+        return projectFilesystem.resolve(intended.get());
+      } else  {
+        return BuildTargets.getAnnotationPath(projectFilesystem, target, fallback);
+      }
+    }
+
     public AnnotationProcessorParameters.Builder setScratchPaths(
         BuildTarget target,
         ProjectFilesystem projectFilesystem,
         Optional<String> sourcesPath,
         Optional<String> classesPath,
         Optional<String> stubsPath,
-        Optional<String> incrementalDataPath,
-        Optional<String> kaptGeneratedPath) {
-      AnnotationProcessorParameters.Builder builder = (AnnotationProcessorParameters.Builder) this;
+        Optional<String> incrementalDataPath) {
 
-      return builder
-          .setSourcesPath(BuildTargets.getAnnotationPath(projectFilesystem, target, sourcesPath.orElse("%s_kapt__sources")))
-          .setClassesPath(BuildTargets.getAnnotationPath(projectFilesystem, target, classesPath.orElse("%s_kapt__classes")))
-          .setStubsPath(BuildTargets.getAnnotationPath(projectFilesystem, target, stubsPath.orElse("%s_kapt__stubs")))
-          .setKaptGeneratedPath(BuildTargets.getAnnotationPath(projectFilesystem, target, kaptGeneratedPath.orElse("%s_kapt__generated")))
-          .setIncrementalDataPath(BuildTargets.getAnnotationPath(projectFilesystem, target, incrementalDataPath.orElse("%s_kapt__incremental_data")))
+      return ((AnnotationProcessorParameters.Builder) this)
+          .setSourcesPath(resolvePath(projectFilesystem, target, sourcesPath, "%s_kapt__sources"))
+          .setClassesPath(resolvePath(projectFilesystem, target, classesPath, "%s_kapt__classes"))
+          .setStubsPath(resolvePath(projectFilesystem, target, stubsPath, "%s_kapt__stubs"))
+          .setIncrementalDataPath(resolvePath(projectFilesystem, target, incrementalDataPath, "%s_kapt__incremental_data"))
           .setPathToSourcesList(BuildTargets.getGenPath(projectFilesystem, target, "%s_kapt__srcs"))
           .setWorkingDirectory(BuildTargets.getGenPath(projectFilesystem, target, "%s_kapt__working_directory"));
+    }
+
+    public AnnotationProcessorParameters.Builder setOptionMaps(
+        BuildTarget target,
+        ProjectFilesystem projectFilesystem,
+        ImmutableMap<String, String> annotationProcessorOptions,
+        ImmutableMap<String, String> javacArguments) {
+
+      Path kaptGeneratedPath;
+      if (!annotationProcessorOptions.containsKey(KAPT_GENERATED)) {
+        kaptGeneratedPath = BuildTargets.getAnnotationPath(projectFilesystem, target, "%s_kapt__generated");
+        annotationProcessorOptions = ImmutableMap.<String,String>builder()
+            .putAll(annotationProcessorOptions)
+            .put(KAPT_GENERATED, kaptGeneratedPath.toString())
+            .build();
+      } else {
+        kaptGeneratedPath = projectFilesystem.resolve(annotationProcessorOptions.get(KAPT_GENERATED));
+      }
+
+      return ((AnnotationProcessorParameters.Builder) this)
+          .setKaptGeneratedPath(kaptGeneratedPath)
+          .setAnnotationProcessorOptions(annotationProcessorOptions)
+          .setJavacArguments(javacArguments);
     }
 
     public AnnotationProcessorParameters.Builder setSourceFileSourcePaths(

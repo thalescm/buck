@@ -2,7 +2,6 @@ package com.facebook.buck.jvm.kotlin;
 
 import static com.facebook.buck.jvm.java.Javac.SRC_ZIP;
 
-import com.facebook.buck.io.filesystem.CopySourceMode;
 import com.facebook.buck.io.filesystem.ProjectFilesystem;
 import com.facebook.buck.jvm.java.CompileAgainstLibraryType;
 import com.facebook.buck.jvm.java.DefaultJavaLibraryClasspaths;
@@ -17,7 +16,6 @@ import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildableContext;
-import com.facebook.buck.rules.BuildableSupport;
 import com.facebook.buck.rules.ExplicitBuildTargetSourcePath;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathRuleFinder;
@@ -34,8 +32,8 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.SortedSet;
 import javax.annotation.Nullable;
-import org.immutables.value.Value;
 
+@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 public class KotlinAnnotationProcessor extends AbstractBuildRule {
 
   @AddToRuleKey(stringify = true)
@@ -104,29 +102,32 @@ public class KotlinAnnotationProcessor extends AbstractBuildRule {
       BuildableContext buildableContext) {
     ImmutableList.Builder<Step> steps = ImmutableList.builder();
     ProjectFilesystem filesystem = getProjectFilesystem();
+    BuildTarget target = getBuildTarget();
 
     AnnotationProcessorParameters apParameters =
         AnnotationProcessorParameters.builder()
             .setClasspathEntriesSourcePaths(classpaths.getCompileTimeClasspathSourcePaths(), context.getSourcePathResolver())
+            .setOptionMaps(target, filesystem, args.getAnnotationProcessorOptions(), args.getJavacArguments())
             .setSourceFileSourcePaths(srcs, filesystem, context.getSourcePathResolver())
-            .setScratchPaths(getBuildTarget(), filesystem, sourcesPath, classesPath, stubsPath, incrementalDataPath)
+            .setScratchPaths(target, filesystem, sourcesPath, classesPath, stubsPath, incrementalDataPath)
             .build();
 
     stepFactory.createAnnotationProcessorSteps(
         context,
-        getBuildTarget(),
+        target,
         apParameters,
         steps,
         buildableContext
     );
 
-    Path outputFolder = BuildTargets
-        .getGenPath(filesystem, getBuildTarget(), "gen-sources__%s");
-    stepFactory.addCreateFolderStep(steps, filesystem, buildableContext, context, outputFolder);
-    steps.add(CopyStep.forDirectory(filesystem, apParameters.getSourcesPath(), outputFolder, DirectoryMode.CONTENTS_ONLY));
-    steps.add(CopyStep.forDirectory(filesystem, apParameters.getClassesPath(), outputFolder, DirectoryMode.CONTENTS_ONLY));
-    steps.add(CopyStep.forDirectory(filesystem, apParameters.getSourcesPath(), outputFolder, DirectoryMode.CONTENTS_ONLY));
 
+    Path tmpFolder = BuildTargets.getScratchPath(filesystem, target, "gen-sources__%s");
+    steps.add(CopyStep.forDirectory(filesystem, apParameters.getSourcesPath(), tmpFolder, DirectoryMode.CONTENTS_ONLY));
+    steps.add(CopyStep.forDirectory(filesystem, apParameters.getClassesPath(), tmpFolder, DirectoryMode.CONTENTS_ONLY));
+    steps.add(CopyStep.forDirectory(filesystem, apParameters.getSourcesPath(), tmpFolder, DirectoryMode.CONTENTS_ONLY));
+
+    Path outputFolder = BuildTargets.getGenPath(filesystem, target, "gen-sources__%s");
+    stepFactory.addCreateFolderStep(steps, filesystem, buildableContext, context, outputFolder);
     steps.add(
         new ZipStep(
             filesystem,
@@ -134,7 +135,7 @@ public class KotlinAnnotationProcessor extends AbstractBuildRule {
             ImmutableSet.of(),
             false,
             ZipCompressionLevel.DEFAULT,
-            stepFactory.getGenFilesDir(getBuildTarget())));
+            tmpFolder));
     return steps.build();
   }
 

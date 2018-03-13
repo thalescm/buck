@@ -7,7 +7,6 @@ import com.facebook.buck.io.filesystem.ProjectFilesystem;
 import com.facebook.buck.jvm.java.ConfiguredCompiler;
 import com.facebook.buck.jvm.java.ExtraClasspathProvider;
 import com.facebook.buck.model.BuildTarget;
-import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.rules.AddToRuleKey;
 import com.facebook.buck.rules.AddsToRuleKey;
 import com.facebook.buck.rules.BuildContext;
@@ -18,12 +17,12 @@ import com.facebook.buck.step.fs.MakeCleanDirectoryStep;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableList.Builder;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
@@ -48,7 +47,7 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
   private static final String JAVAC_ARG = KAPT3_PLUGIN + "javacArguments=";
   private static final String AP_OPTIONS = KAPT3_PLUGIN + "apoptions=";
 //  private static final String MAP_DIAGNOSTIC_LOCATIONS = KAPT3_PLUGIN + "mapDiagnosticLocations=";
-  private static final String KAPT_GENERATED = "kapt.kotlin.generated";
+  static final String KAPT_GENERATED = "kapt.kotlin.generated";
   private static final String MODULE_NAME = "-module-name";
 
   @AddToRuleKey private final Kotlinc kotlinc;
@@ -69,12 +68,6 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
     this.extraArguments = extraArguments;
     this.extraClassPath = extraClassPath;
   }
-
-  public Path getGenFilesDir(BuildTarget invokingRule) {
-    return BuildTargets
-        .getAnnotationPath(projectFilesystem, invokingRule, "%s_kapt__gen");
-  }
-
   public void createAnnotationProcessorSteps(
       BuildContext context,
       BuildTarget invokingRule,
@@ -86,68 +79,67 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
     ImmutableSortedSet<Path> sourceFilePaths = parameters.getSourceFilePaths();
     Path pathToSrcsList = parameters.getPathToSourcesList();
 
-    // Only invoke kotlinc if we have kotlin files.
-    if (sourceFilePaths.stream().anyMatch(PathMatchers.KOTLIN_PATH_MATCHER::matches)) {
+    Path stubsOutput = parameters.getStubsPath();
+    Path incrementalData = parameters.getIncrementalDataPath();
+    Path classes = parameters.getClassesPath();
+    Path sources = parameters.getSourcesPath();
+    Path kaptGen = parameters.getKaptGeneratedPath();
 
-      Path stubsOutput = BuildTargets
-          .getAnnotationPath(projectFilesystem, invokingRule, "%s_kapt__stubs");
-      Path incrementalData =
-          BuildTargets.getAnnotationPath(projectFilesystem, invokingRule, "%s_kapt__incremental_data");
-      Path genOutput = getGenFilesDir(invokingRule);
+    addCreateFolderStep(steps, projectFilesystem, buildableContext, context, stubsOutput);
+    addCreateFolderStep(steps, projectFilesystem, buildableContext, context, incrementalData);
+    addCreateFolderStep(steps, projectFilesystem, buildableContext, context, classes);
+    addCreateFolderStep(steps, projectFilesystem, buildableContext, context, sources);
+    addCreateFolderStep(steps, projectFilesystem, buildableContext, context, kaptGen);
 
-      addCreateFolderStep(steps, projectFilesystem, buildableContext, context, stubsOutput);
-      addCreateFolderStep(steps, projectFilesystem, buildableContext, context, incrementalData);
-      addCreateFolderStep(steps, projectFilesystem, buildableContext, context, genOutput);
+    ImmutableSortedSet<Path> allClasspaths = ImmutableSortedSet.<Path>naturalOrder()
+        .addAll(
+            Optional.ofNullable(extraClassPath.getExtraClasspath())
+                .orElse(ImmutableList.of()))
+        .addAll(declaredClasspathEntries)
+        .addAll(kotlinHomeLibraries)
+        .build();
 
-      ImmutableSortedSet<Path> allClasspaths = ImmutableSortedSet.<Path>naturalOrder()
-          .addAll(
-              Optional.ofNullable(extraClassPath.getExtraClasspath())
-                  .orElse(ImmutableList.of()))
-          .addAll(declaredClasspathEntries)
-          .addAll(kotlinHomeLibraries)
-          .build();
-
-      addAnnotationProcessingSteps(
-          invokingRule,
-          steps,
-          projectFilesystem,
-          sourceFilePaths,
-          pathToSrcsList,
-          sourceFilePaths,
-          allClasspaths,
-          extraArguments,
-          genOutput,
-          stubsOutput,
-          incrementalData);
-    }
+    addAnnotationProcessingSteps(
+        invokingRule,
+        steps,
+        projectFilesystem,
+        pathToSrcsList,
+        sourceFilePaths,
+        allClasspaths,
+        extraArguments,
+        classes,
+        sources,
+        stubsOutput,
+        incrementalData,
+        parameters.getAnnotationProcessorOptions(),
+        parameters.getJavacArguments());
   }
 
   private void addAnnotationProcessingSteps(
       BuildTarget invokingRule,
       ImmutableList.Builder<Step> steps,
       ProjectFilesystem filesystem,
-      ImmutableSortedSet<Path> sourceFilePaths,
       Path pathToSrcsList,
       ImmutableSortedSet<Path> sourcePaths,
       Iterable<? extends Path> declaredClasspathEntries,
       ImmutableList<String> extraArguments,
-      Path genOutput,
+      Path classes,
+      Path sources,
       Path stubsOutput,
-      Path incrementalData) {
+      Path incrementalData,
+      ImmutableMap<String, String> apOptions,
+      ImmutableMap<String, String> javacArguments) {
 
     ImmutableList<String> apClassPaths =
         ImmutableList.<String>builder()
             .add(AP_CLASSPATH_ARG + kotlinc.getAnnotationProcessorPath())
             .add(AP_CLASSPATH_ARG + kotlinc.getStdlibPath())
-            .add(SOURCES_ARG + filesystem.resolve(genOutput))
-            .add(CLASSES_ARG + filesystem.resolve(genOutput))
+            .add(SOURCES_ARG + filesystem.resolve(sources))
+            .add(CLASSES_ARG + filesystem.resolve(classes))
             .add(INCREMENTAL_ARG + filesystem.resolve(incrementalData))
             .add(STUBS_ARG + filesystem.resolve(stubsOutput))
-            .add(
-                AP_OPTIONS
-                    + encodeOptions(
-                    Collections.singletonMap(KAPT_GENERATED, genOutput.toString())))
-            .add(JAVAC_ARG + encodeOptions(Collections.emptyMap()))
+            .add(AP_OPTIONS + encodeOptions(apOptions))
+            .add(JAVAC_ARG + encodeOptions(javacArguments))
             .add(LIGHT_ANALYSIS + "true")
             .add(VERBOSE_ARG + "true")
             .add(CORRECT_ERROR_TYPES + "false") // TODO: Provide value as argument
@@ -162,7 +154,7 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
         new KotlincStep(
             invokingRule,
             null,
-            sourceFilePaths,
+            sourcePaths,
             pathToSrcsList,
             ImmutableSortedSet.<Path>naturalOrder()
                 .add(kotlinc.getStdlibPath())
