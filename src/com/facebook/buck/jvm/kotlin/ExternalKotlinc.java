@@ -15,9 +15,12 @@
  */
 package com.facebook.buck.jvm.kotlin;
 
+import static com.facebook.buck.jvm.java.Javac.SRC_JAR;
+import static com.facebook.buck.jvm.java.Javac.SRC_ZIP;
 import static com.google.common.collect.Iterables.transform;
 
 import com.facebook.buck.io.filesystem.ProjectFilesystem;
+import com.facebook.buck.io.filesystem.ProjectFilesystemFactory;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.rules.RuleKeyAppendable;
 import com.facebook.buck.rules.RuleKeyObjectSink;
@@ -25,15 +28,19 @@ import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.step.ExecutionContext;
 import com.facebook.buck.util.Console;
 import com.facebook.buck.util.DefaultProcessExecutor;
+import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.MoreSuppliers;
 import com.facebook.buck.util.ProcessExecutor;
 import com.facebook.buck.util.ProcessExecutor.Result;
 import com.facebook.buck.util.ProcessExecutorParams;
+import com.facebook.buck.util.unarchive.ArchiveFormat;
+import com.facebook.buck.util.unarchive.ExistingFileMode;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -105,13 +112,25 @@ public class ExternalKotlinc implements Kotlinc, RuleKeyAppendable {
       ProjectFilesystem projectFilesystem)
       throws InterruptedException {
 
+    ImmutableList<Path> expandedSources;
+    try {
+      expandedSources = getExpandedSourcePaths(
+                projectFilesystem,
+                context.getProjectFilesystemFactory(),
+                kotlinSourceFilePaths,
+                workingDirectory);
+    } catch (Throwable throwable) {
+      throw new HumanReadableException(
+          "Unable to expand sources for %s into %s", invokingRule, workingDirectory);
+    }
+
     ImmutableList<String> command =
         ImmutableList.<String>builder()
             .add(pathToKotlinc.toString())
             .addAll(options)
             .addAll(
                 transform(
-                    kotlinSourceFilePaths,
+                    expandedSources,
                     path -> projectFilesystem.resolve(path).toAbsolutePath().toString()))
             .build();
 

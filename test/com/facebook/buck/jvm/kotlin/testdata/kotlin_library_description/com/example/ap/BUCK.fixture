@@ -1,20 +1,24 @@
 kotlin_library(
   name = 'kotlin',
-  srcs = ['AKotlinClass.kt', 'AJavaClass.java'],
+  srcs = [
+    'AKotlinClass.kt',
+    'AJavaClass.java',
+    ':ap',
+  ],
   visibility = [
     'PUBLIC',
-  ],
-  plugins = [
-      ":ap",
-  ],
+  ]
 )
 
-java_annotation_processor(
+kotlin_annotation_processor(
     name = "ap",
+    srcs = [
+      'AKotlinClass.kt',
+      'AJavaClass.java',
+    ],
     deps = [
         ":ap-lib",
     ],
-    processor_class = "com.example.ap.AnnotationProcessor",
 )
 
 java_library(

@@ -40,7 +40,8 @@ public class KotlinConfiguredCompilerFactory extends ConfiguredCompilerFactory {
   private final Function<ToolchainProvider, ExtraClasspathProvider> extraClasspathProviderSupplier;
 
   public KotlinConfiguredCompilerFactory(
-      KotlinBuckConfig kotlinBuckConfig, JavaBuckConfig javaBuckConfig) {
+      KotlinBuckConfig kotlinBuckConfig,
+      JavaBuckConfig javaBuckConfig) {
     this(kotlinBuckConfig, javaBuckConfig, (toolchainProvider) -> ExtraClasspathProvider.EMPTY);
   }
 
@@ -48,7 +49,6 @@ public class KotlinConfiguredCompilerFactory extends ConfiguredCompilerFactory {
       KotlinBuckConfig kotlinBuckConfig,
       JavaBuckConfig javaBuckConfig,
       Function<ToolchainProvider, ExtraClasspathProvider> extraClasspathProviderSupplier) {
-    super();
     this.kotlinBuckConfig = kotlinBuckConfig;
     this.javaBuckConfig = javaBuckConfig;
     this.extraClasspathProviderSupplier = extraClasspathProviderSupplier;
@@ -63,6 +63,7 @@ public class KotlinConfiguredCompilerFactory extends ConfiguredCompilerFactory {
       JavacOptions javacOptions,
       BuildRuleResolver buildRuleResolver,
       ToolchainProvider toolchainProvider) {
+
     return new KotlincToJarStepFactory(
         sourcePathResolver,
         ruleFinder,

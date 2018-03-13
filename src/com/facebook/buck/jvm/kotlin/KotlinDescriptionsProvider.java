@@ -38,6 +38,7 @@ public class KotlinDescriptionsProvider implements DescriptionProvider {
 
     return Arrays.asList(
         new KotlinLibraryDescription(toolchainProvider, kotlinBuckConfig, javaConfig),
-        new KotlinTestDescription(toolchainProvider, kotlinBuckConfig, javaConfig));
+        new KotlinTestDescription(toolchainProvider, kotlinBuckConfig, javaConfig),
+        new KotlinAnnotationProcessorDescription(kotlinBuckConfig));
   }
 }
