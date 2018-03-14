@@ -17,7 +17,10 @@ kotlin_annotation_processor(
       'AJavaClass.java',
     ],
     deps = [
-        ":ap-lib",
+      ":another_kotlin"
+    ],
+    annotation_processor_deps = [
+      ":ap-lib",
     ],
 )
 
@@ -30,4 +33,14 @@ java_library(
         'resources/**',
     ]),
     resources_root = "resources"
+)
+
+kotlin_library(
+  name = 'another_kotlin',
+  srcs = [
+    'AnotherKotlinClass.kt',
+  ],
+  visibility = [
+    'PUBLIC',
+  ]
 )

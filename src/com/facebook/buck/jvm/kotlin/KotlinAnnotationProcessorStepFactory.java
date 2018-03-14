@@ -25,6 +25,7 @@ import java.io.ObjectOutputStream;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler, AddsToRuleKey {
 
@@ -46,7 +47,7 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
   private static final String VERBOSE_ARG = KAPT3_PLUGIN + "verbose=";
   private static final String JAVAC_ARG = KAPT3_PLUGIN + "javacArguments=";
   private static final String AP_OPTIONS = KAPT3_PLUGIN + "apoptions=";
-//  private static final String MAP_DIAGNOSTIC_LOCATIONS = KAPT3_PLUGIN + "mapDiagnosticLocations=";
+  //  private static final String MAP_DIAGNOSTIC_LOCATIONS = KAPT3_PLUGIN + "mapDiagnosticLocations=";
   static final String KAPT_GENERATED = "kapt.kotlin.generated";
   private static final String MODULE_NAME = "-module-name";
 
@@ -68,6 +69,7 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
     this.extraArguments = extraArguments;
     this.extraClassPath = extraClassPath;
   }
+
   public void createAnnotationProcessorSteps(
       BuildContext context,
       BuildTarget invokingRule,
@@ -76,6 +78,8 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
       BuildableContext buildableContext) {
 
     ImmutableSortedSet<Path> declaredClasspathEntries = parameters.getClasspathEntries();
+    ImmutableSortedSet<Path> declaredAnnotationProcessorClasspathEntries = parameters
+        .getAnnotationProcessorClasspathEntries();
     ImmutableSortedSet<Path> sourceFilePaths = parameters.getSourceFilePaths();
     Path pathToSrcsList = parameters.getPathToSourcesList();
 
@@ -106,6 +110,7 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
         pathToSrcsList,
         sourceFilePaths,
         allClasspaths,
+        declaredAnnotationProcessorClasspathEntries,
         extraArguments,
         classes,
         sources,
@@ -121,7 +126,8 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
       ProjectFilesystem filesystem,
       Path pathToSrcsList,
       ImmutableSortedSet<Path> sourcePaths,
-      Iterable<? extends Path> declaredClasspathEntries,
+      ImmutableSortedSet<Path> declaredClasspathEntries,
+      ImmutableSortedSet<Path> declaredAnnotationProcessorClasspathEntries,
       ImmutableList<String> extraArguments,
       Path classes,
       Path sources,
@@ -130,10 +136,13 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
       ImmutableMap<String, String> apOptions,
       ImmutableMap<String, String> javacArguments) {
 
-    ImmutableList<String> apClassPaths =
+    ImmutableList<String> annotationProcessorArguments =
         ImmutableList.<String>builder()
             .add(AP_CLASSPATH_ARG + kotlinc.getAnnotationProcessorPath())
             .add(AP_CLASSPATH_ARG + kotlinc.getStdlibPath())
+            .addAll(declaredAnnotationProcessorClasspathEntries
+                .stream().map(path -> AP_CLASSPATH_ARG + filesystem.resolve(path))
+                .collect(Collectors.toSet()))
             .add(SOURCES_ARG + filesystem.resolve(sources))
             .add(CLASSES_ARG + filesystem.resolve(classes))
             .add(INCREMENTAL_ARG + filesystem.resolve(incrementalData))
@@ -144,10 +153,10 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
             .add(VERBOSE_ARG + "true")
             .add(CORRECT_ERROR_TYPES + "false") // TODO: Provide value as argument
             // .add(MAP_DIAGNOSTIC_LOCATIONS + "true") // TODO: Provide value as argument,
-                                                       // can only be accepted if kotlin version
-                                                       // is greater then 1.2.30
+            // can only be accepted if kotlin version
+            // is greater then 1.2.30
             .build();
-    String join = Joiner.on(",").join(apClassPaths);
+    String join = Joiner.on(",").join(annotationProcessorArguments);
 
     // First generate java stubs
     steps.add(

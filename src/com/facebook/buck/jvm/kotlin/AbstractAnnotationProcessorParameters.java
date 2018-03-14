@@ -30,6 +30,11 @@ public abstract class AbstractAnnotationProcessorParameters {
     return ImmutableSortedSet.of();
   }
 
+  @Value.Default
+  public ImmutableSortedSet<Path> getAnnotationProcessorClasspathEntries() {
+    return ImmutableSortedSet.of();
+  }
+
   public abstract Path getWorkingDirectory();
 
   public abstract Path getPathToSourcesList();
@@ -116,6 +121,17 @@ public abstract class AbstractAnnotationProcessorParameters {
               .map(resolver::getAbsolutePath)
               .collect(ImmutableSortedSet.toImmutableSortedSet(Ordering.natural()));
       return ((AnnotationProcessorParameters.Builder) this).setClasspathEntries(compileTimeClasspathPaths);
+    }
+
+    public AnnotationProcessorParameters.Builder setAnnotationProcessorClasspathEntriesSourcePaths(
+        ImmutableSortedSet<SourcePath> compileTimeClasspathSourcePaths,
+        SourcePathResolver resolver) {
+      ImmutableSortedSet<Path> compileTimeClasspathPaths =
+          compileTimeClasspathSourcePaths
+              .stream()
+              .map(resolver::getAbsolutePath)
+              .collect(ImmutableSortedSet.toImmutableSortedSet(Ordering.natural()));
+      return ((AnnotationProcessorParameters.Builder) this).setAnnotationProcessorClasspathEntries(compileTimeClasspathPaths);
     }
   }
 }

@@ -6,6 +6,7 @@ import com.facebook.buck.io.filesystem.ProjectFilesystem;
 import com.facebook.buck.jvm.java.CompileAgainstLibraryType;
 import com.facebook.buck.jvm.java.DefaultJavaLibraryClasspaths;
 import com.facebook.buck.jvm.java.JavaLibraryDeps;
+import com.facebook.buck.jvm.java.JavaLibraryDescription;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.rules.AbstractBuildRule;
@@ -55,6 +56,7 @@ public class KotlinAnnotationProcessor extends AbstractBuildRule {
   private final BuildRuleResolver buildRuleResolver;
   private final KotlinAnnotationProcessorDescriptionArg args;
   private final DefaultJavaLibraryClasspaths classpaths;
+  private final DefaultJavaLibraryClasspaths annotationProcessorClasspaths;
 
   KotlinAnnotationProcessor(
       BuildTarget buildTarget,
@@ -63,21 +65,29 @@ public class KotlinAnnotationProcessor extends AbstractBuildRule {
       BuildRuleParams buildRuleParams,
       BuildRuleResolver buildRuleResolver,
       KotlinAnnotationProcessorDescriptionArg args) {
+
     super(buildTarget, projectFilesystem);
     this.stepFactory = stepFactory;
     this.args = args;
     this.srcs = args.getSrcs();
     this.buildRuleParams = buildRuleParams;
     this.buildRuleResolver = buildRuleResolver;
-    this.classpaths = getClasspaths();
-    this.output = BuildTargets.getGenPath(projectFilesystem, getBuildTarget(), "gen-sources__%s/generated" + SRC_ZIP);
+    this.classpaths = getClasspaths(args);
+    this.annotationProcessorClasspaths = getClasspaths(
+        KotlinAnnotationProcessorDescriptionArg
+            .builder()
+            .from(args)
+            .setDeps(args.getAnnotationProcessorDeps())
+            .build());
+    this.output = BuildTargets
+        .getGenPath(projectFilesystem, getBuildTarget(), "gen-sources__%s/generated" + SRC_ZIP);
     this.sourcesPath = args.getGeneratedSourcesPath();
     this.classesPath = args.getGeneratedClassesPath();
     this.stubsPath = args.getGeneratedStubsPath();
     this.incrementalDataPath = args.getGeneratedIncrementalDataPath();
   }
 
-  private DefaultJavaLibraryClasspaths getClasspaths() {
+  private DefaultJavaLibraryClasspaths getClasspaths(JavaLibraryDescription.CoreArg args) {
     return DefaultJavaLibraryClasspaths.builder(buildRuleResolver)
         .setBuildRuleParams(buildRuleParams)
         .setConfiguredCompiler(stepFactory)
@@ -89,10 +99,13 @@ public class KotlinAnnotationProcessor extends AbstractBuildRule {
   @Override
   public SortedSet<BuildRule> getBuildDeps() {
     return new BuildDeps(ImmutableSortedSet.<BuildRule>naturalOrder()
-        .addAll(classpaths.getNonClasspathDeps())
         .addAll(stepFactory.getBuildDeps(new SourcePathRuleFinder(buildRuleResolver)))
+        .addAll(classpaths.getNonClasspathDeps())
         .addAll(classpaths.getCompileTimeClasspathAbiDeps())
         .addAll(classpaths.getCompileTimeClasspathFullDeps())
+        .addAll(annotationProcessorClasspaths.getNonClasspathDeps())
+        .addAll(annotationProcessorClasspaths.getCompileTimeClasspathAbiDeps())
+        .addAll(annotationProcessorClasspaths.getCompileTimeClasspathFullDeps())
         .build());
   }
 
@@ -107,6 +120,7 @@ public class KotlinAnnotationProcessor extends AbstractBuildRule {
     AnnotationProcessorParameters apParameters =
         AnnotationProcessorParameters.builder()
             .setClasspathEntriesSourcePaths(classpaths.getCompileTimeClasspathSourcePaths(), context.getSourcePathResolver())
+            .setAnnotationProcessorClasspathEntriesSourcePaths(annotationProcessorClasspaths.getCompileTimeClasspathSourcePaths(), context.getSourcePathResolver())
             .setOptionMaps(target, filesystem, args.getAnnotationProcessorOptions(), args.getJavacArguments())
             .setSourceFileSourcePaths(srcs, filesystem, context.getSourcePathResolver())
             .setScratchPaths(target, filesystem, sourcesPath, classesPath, stubsPath, incrementalDataPath)
@@ -120,11 +134,13 @@ public class KotlinAnnotationProcessor extends AbstractBuildRule {
         buildableContext
     );
 
-
     Path tmpFolder = BuildTargets.getScratchPath(filesystem, target, "gen-sources__%s");
-    steps.add(CopyStep.forDirectory(filesystem, apParameters.getSourcesPath(), tmpFolder, DirectoryMode.CONTENTS_ONLY));
-    steps.add(CopyStep.forDirectory(filesystem, apParameters.getClassesPath(), tmpFolder, DirectoryMode.CONTENTS_ONLY));
-    steps.add(CopyStep.forDirectory(filesystem, apParameters.getSourcesPath(), tmpFolder, DirectoryMode.CONTENTS_ONLY));
+    steps.add(CopyStep.forDirectory(filesystem, apParameters.getSourcesPath(), tmpFolder,
+        DirectoryMode.CONTENTS_ONLY));
+    steps.add(CopyStep.forDirectory(filesystem, apParameters.getClassesPath(), tmpFolder,
+        DirectoryMode.CONTENTS_ONLY));
+    steps.add(CopyStep.forDirectory(filesystem, apParameters.getSourcesPath(), tmpFolder,
+        DirectoryMode.CONTENTS_ONLY));
 
     Path outputFolder = BuildTargets.getGenPath(filesystem, target, "gen-sources__%s");
     stepFactory.addCreateFolderStep(steps, filesystem, buildableContext, context, outputFolder);
