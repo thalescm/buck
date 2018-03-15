@@ -89,7 +89,7 @@ public abstract class AbstractAnnotationProcessorParameters {
         kaptGeneratedPath = BuildTargets.getAnnotationPath(projectFilesystem, target, "%s_kapt__generated");
         annotationProcessorOptions = ImmutableMap.<String,String>builder()
             .putAll(annotationProcessorOptions)
-            .put(KAPT_GENERATED, kaptGeneratedPath.toString())
+            .put(KAPT_GENERATED, projectFilesystem.resolve(kaptGeneratedPath).toString())
             .build();
       } else {
         kaptGeneratedPath = projectFilesystem.resolve(annotationProcessorOptions.get(KAPT_GENERATED));

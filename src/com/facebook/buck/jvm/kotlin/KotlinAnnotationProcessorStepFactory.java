@@ -117,7 +117,8 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
         stubsOutput,
         incrementalData,
         parameters.getAnnotationProcessorOptions(),
-        parameters.getJavacArguments());
+        parameters.getJavacArguments(),
+        parameters.getWorkingDirectory());
   }
 
   private void addAnnotationProcessingSteps(
@@ -134,7 +135,8 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
       Path stubsOutput,
       Path incrementalData,
       ImmutableMap<String, String> apOptions,
-      ImmutableMap<String, String> javacArguments) {
+      ImmutableMap<String, String> javacArguments,
+      Path workingDirectory) {
 
     ImmutableList<String> annotationProcessorArguments =
         ImmutableList.<String>builder()
@@ -158,6 +160,27 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
             .build();
     String join = Joiner.on(",").join(annotationProcessorArguments);
 
+    ImmutableList<String> extraArgs = ImmutableList.<String>builder()
+        .addAll(extraArguments)
+        .add(MODULE_NAME)
+        .add(invokingRule.getShortNameAndFlavorPostfix())
+        .add(COMPILER_BUILTINS)
+        .add(LOAD_BUILTINS_FROM)
+        .add(X_PLUGIN_ARG + kotlinc.getAnnotationProcessorPath())
+        .add(PLUGIN)
+        .build();
+
+    ImmutableList<String> stubsExtraArgs = ImmutableList.<String>builder()
+        .addAll(extraArgs)
+        .add(KAPT3_PLUGIN + APT_MODE + "stubs," + join)
+        .build();
+
+
+    ImmutableList<String> aptExtraArgs = ImmutableList.<String>builder()
+        .addAll(extraArgs)
+        .add(KAPT3_PLUGIN + APT_MODE + "apt," + join)
+        .build();
+
     // First generate java stubs
     steps.add(
         new KotlincStep(
@@ -165,23 +188,11 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
             null,
             sourcePaths,
             pathToSrcsList,
-            ImmutableSortedSet.<Path>naturalOrder()
-                .add(kotlinc.getStdlibPath())
-                .addAll(declaredClasspathEntries)
-                .build(),
+            declaredClasspathEntries,
             kotlinc,
-            ImmutableList.<String>builder()
-                .addAll(extraArguments)
-                .add(MODULE_NAME)
-                .add(invokingRule.getShortNameAndFlavorPostfix())
-                .add(COMPILER_BUILTINS)
-                .add(LOAD_BUILTINS_FROM)
-                .add(PLUGIN)
-                .add(KAPT3_PLUGIN + APT_MODE + "stubs," + join)
-                .add(X_PLUGIN_ARG + kotlinc.getAnnotationProcessorPath())
-                .build(),
+            stubsExtraArgs,
             filesystem,
-            Optional.empty()));
+            Optional.of(workingDirectory)));
 
     // Then run the annotation processor
     steps.add(
@@ -190,23 +201,11 @@ public class KotlinAnnotationProcessorStepFactory implements ConfiguredCompiler,
             null,
             sourcePaths,
             pathToSrcsList,
-            ImmutableSortedSet.<Path>naturalOrder()
-                .add(kotlinc.getStdlibPath())
-                .addAll(declaredClasspathEntries)
-                .build(),
+            declaredClasspathEntries,
             kotlinc,
-            ImmutableList.<String>builder()
-                .addAll(extraArguments)
-                .add(MODULE_NAME)
-                .add(invokingRule.getShortNameAndFlavorPostfix())
-                .add(COMPILER_BUILTINS)
-                .add(LOAD_BUILTINS_FROM)
-                .add(PLUGIN)
-                .add(KAPT3_PLUGIN + APT_MODE + "apt," + join)
-                .add(X_PLUGIN_ARG + kotlinc.getAnnotationProcessorPath())
-                .build(),
+            aptExtraArgs,
             filesystem,
-            Optional.empty()));
+            Optional.of(workingDirectory)));
   }
 
   public void addCreateFolderStep(

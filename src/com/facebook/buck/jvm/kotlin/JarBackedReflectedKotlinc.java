@@ -167,6 +167,10 @@ public class JarBackedReflectedKotlinc implements Kotlinc {
 
       Method getCode = exitCodeClass.getMethod("getCode");
 
+      System.out.println("*****************************************");
+      System.out.println(args.stream().reduce((s, s2) -> s + "\n" + s2));
+      System.out.println("*****************************************");
+
       try (UncloseablePrintStream stdErr = new UncloseablePrintStream(context.getStdErr())) {
         Object exitCode = compile.invoke(compilerShim, stdErr, args.toArray(new String[0]));
 
